@@ -1,0 +1,630 @@
+================================================================
+ VIBECHAT - LARAVEL BACKEND SETUP GUIDE
+ Nexa-Group | VibeChat Platform
+ Version: 4.0.0
+================================================================
+
+CHANGELOG v4.0:
+  - Added Google Sign-In and Apple Sign-In backend verification guide
+  - Added SMTP provider configuration for all options (Mailgun/SendGrid/SES)
+  - Added admin user editing endpoint documentation
+  - Added Integration-Keys-Guide.txt reference
+
+CHANGELOG v3.0 (prior):
+  - Added OTP controller and routes (registration + password reset)
+  - Added Help Center controller and routes
+  - Added Knowledge Base controller with full-text search
+  - Updated migration list with all 48 tables
+
+REQUIREMENTS
+------------
+  PHP:        8.2+
+  MySQL:      8.0+
+  Redis:      7.0+
+  Composer:   2.x
+  Node.js:    18+ (for Laravel Mix / Vite)
+  Server:     Ubuntu 22.04 LTS (recommended)
+
+
+================================================================
+STEP 1: CREATE LARAVEL PROJECT
+================================================================
+
+composer create-project laravel/laravel vibechat-api
+cd vibechat-api
+
+# Install required packages
+composer require laravel/sanctum
+composer require spatie/laravel-permission
+composer require pusher/pusher-php-server
+composer require league/flysystem-aws-s3-v3
+composer require maatwebsite/excel
+composer require barryvdh/laravel-cors
+composer require intervention/image
+composer require vonage/client-core        # SMS OTP
+composer require twilio/sdk                # Alternative: Twilio SMS
+
+# Development only
+composer require --dev laravel/telescope
+
+# Publish config files
+php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider"
+php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider"
+php artisan vendor:publish --provider="Laravel\Telescope\TelescopeServiceProvider"
+
+
+================================================================
+STEP 2: CONFIGURE .ENV
+================================================================
+
+APP_NAME=VibeChat
+APP_ENV=local
+APP_KEY=                          # php artisan key:generate
+APP_DEBUG=true
+APP_URL=http://localhost:8000
+
+# OTP / SMS provider (choose one)
+VONAGE_KEY=your_vonage_api_key
+VONAGE_SECRET=your_vonage_api_secret
+VONAGE_SMS_FROM=VibeChat
+# OR use Twilio:
+# TWILIO_SID=your_twilio_sid
+# TWILIO_TOKEN=your_twilio_auth_token
+# TWILIO_FROM=+1XXXXXXXXXX
+
+# OTP Settings
+OTP_EXPIRY_MINUTES=10
+OTP_MAX_ATTEMPTS=5
+OTP_CODE_LENGTH=6
+
+LOG_CHANNEL=daily
+LOG_DEPRECATIONS_CHANNEL=null
+LOG_LEVEL=debug
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=vibechat
+DB_USERNAME=root
+DB_PASSWORD=your_password
+
+BROADCAST_DRIVER=pusher
+CACHE_DRIVER=redis
+FILESYSTEM_DISK=s3
+QUEUE_CONNECTION=redis
+SESSION_DRIVER=redis
+SESSION_LIFETIME=120
+
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.mailgun.org
+MAIL_PORT=587
+MAIL_USERNAME=your_mailgun_username
+MAIL_PASSWORD=your_mailgun_password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=noreply@vibechat.app
+MAIL_FROM_NAME=VibeChat
+
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_DEFAULT_REGION=us-east-1
+AWS_BUCKET=vibechat-media
+AWS_URL=https://vibechat-media.s3.amazonaws.com
+
+PUSHER_APP_ID=
+PUSHER_APP_KEY=
+PUSHER_APP_SECRET=
+PUSHER_APP_CLUSTER=us2
+
+SANCTUM_STATEFUL_DOMAINS=localhost:3000,vibechat.app
+
+
+================================================================
+STEP 3: CREATE MIGRATIONS
+================================================================
+
+Create migration files in the order defined in Database-schema.txt.
+Below is the pattern for the users migration:
+
+php artisan make:migration create_users_table
+
+# In the migration file:
+Schema::create('users', function (Blueprint $table) {
+    $table->id();
+    $table->uuid('uuid')->unique()->default(DB::raw('(UUID())'));
+    $table->string('username', 30)->unique();
+    $table->string('email')->unique();
+    $table->timestamp('email_verified_at')->nullable();
+    $table->string('phone', 20)->nullable()->unique();
+    $table->timestamp('phone_verified_at')->nullable();
+    $table->string('password');
+    $table->rememberToken();
+    $table->enum('account_status', ['normal','verified','creator','suspended','banned','deleted'])->default('normal');
+    $table->enum('staff_role', ['none','support','moderator','administrator'])->default('none');
+    $table->enum('privacy_level', ['public','friends_only','private'])->default('public');
+    $table->boolean('is_online')->default(false);
+    $table->timestamp('last_seen_at')->nullable();
+    $table->unsignedInteger('streak_days')->default(0);
+    $table->date('streak_last_activity')->nullable();
+    $table->boolean('two_factor_enabled')->default(false);
+    $table->string('two_factor_secret')->nullable();
+    $table->text('two_factor_recovery')->nullable();
+    $table->unsignedTinyInteger('login_attempts')->default(0);
+    $table->timestamp('locked_until')->nullable();
+    $table->unsignedTinyInteger('warning_count')->default(0);
+    $table->text('suspension_reason')->nullable();
+    $table->timestamp('suspension_ends_at')->nullable();
+    $table->timestamp('banned_at')->nullable();
+    $table->text('ban_reason')->nullable();
+    $table->softDeletes();
+    $table->timestamps();
+});
+
+# Repeat for all 35 tables using the SQL schema as reference.
+# Run all migrations:
+php artisan migrate
+
+
+================================================================
+STEP 4: CREATE ELOQUENT MODELS
+================================================================
+
+php artisan make:model User            -m  (already exists)
+php artisan make:model UserProfile     -m
+php artisan make:model UserSetting     -m
+php artisan make:model UserDevice      -m
+php artisan make:model UserSession     -m
+php artisan make:model UserBlock       -m
+php artisan make:model Friendship      -m
+php artisan make:model FriendRequest   -m
+php artisan make:model Conversation    -m
+php artisan make:model Message         -m
+php artisan make:model Story           -m
+php artisan make:model StoryView       -m
+php artisan make:model Notification    -m
+php artisan make:model SupportTicket   -m
+php artisan make:model ContentReport   -m
+php artisan make:model AdminAuditLog   -m
+php artisan make:model EmailTemplate   -m
+php artisan make:model EmailCampaign   -m
+php artisan make:model SystemSetting   -m
+php artisan make:model CreatorAnalytic -m
+php artisan make:model Subscription    -m
+php artisan make:model SubscriptionPlan -m
+php artisan make:model MediaUpload     -m
+
+# User model key relationships to define:
+# User hasOne UserProfile
+# User hasOne UserSetting
+# User hasMany UserDevice
+# User hasMany UserSession
+# User belongsToMany User as friends (via friendships)
+# User hasMany Message as sender
+# User hasMany Story
+# User hasMany SupportTicket
+# User hasMany Subscription
+
+
+================================================================
+STEP 5: CREATE API CONTROLLERS
+================================================================
+
+php artisan make:controller Api/AuthController
+php artisan make:controller Api/UserController
+php artisan make:controller Api/FriendController
+php artisan make:controller Api/ConversationController
+php artisan make:controller Api/MessageController
+php artisan make:controller Api/StoryController
+php artisan make:controller Api/NotificationController
+php artisan make:controller Api/SubscriptionController
+php artisan make:controller Api/SettingsController
+php artisan make:controller Api/MediaController
+php artisan make:controller Api/CreatorController
+php artisan make:controller Api/Admin/UserController
+php artisan make:controller Api/Admin/TicketController
+php artisan make:controller Api/Admin/ReportController
+php artisan make:controller Api/Admin/AnalyticsController
+php artisan make:controller Api/Admin/SettingController
+php artisan make:controller Api/Admin/EmailTemplateController
+php artisan make:controller Api/Admin/EmailCampaignController
+php artisan make:controller Api/Admin/AuditLogController
+php artisan make:controller Api/Admin/VerificationController
+
+
+================================================================
+STEP 6: SET UP ROUTES
+================================================================
+
+# routes/api.php structure:
+
+Route::prefix('v1')->group(function () {
+
+    // Public
+    Route::post('/auth/register',        [AuthController::class, 'register']);
+    Route::post('/auth/login',           [AuthController::class, 'login']);
+    Route::post('/auth/refresh',         [AuthController::class, 'refresh']);
+    Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/auth/reset-password',  [AuthController::class, 'resetPassword']);
+    Route::get('/app/config',            [AppController::class, 'config']);
+    Route::get('/app/version/check',     [AppController::class, 'versionCheck']);
+    Route::get('/subscriptions/plans',   [SubscriptionController::class, 'plans']);
+
+    // Authenticated routes
+    Route::middleware('auth:sanctum')->group(function () {
+
+        Route::post('/auth/logout',     [AuthController::class, 'logout']);
+        Route::post('/auth/logout-all', [AuthController::class, 'logoutAll']);
+
+        Route::apiResource('users', UserController::class)->only(['index','show','update']);
+        Route::get('/users/me',        [UserController::class, 'me']);
+        Route::post('/users/{username}/block',   [UserController::class, 'block']);
+        Route::delete('/users/{username}/block', [UserController::class, 'unblock']);
+        Route::post('/users/{username}/report',  [UserController::class, 'report']);
+
+        Route::apiResource('friends', FriendController::class);
+        Route::get('/friends/requests',              [FriendController::class, 'requests']);
+        Route::post('/friends/requests',             [FriendController::class, 'sendRequest']);
+        Route::put('/friends/requests/{id}/accept',  [FriendController::class, 'acceptRequest']);
+        Route::delete('/friends/requests/{id}',      [FriendController::class, 'removeRequest']);
+        Route::put('/friends/{username}/favorite',   [FriendController::class, 'toggleFavorite']);
+
+        Route::apiResource('conversations', ConversationController::class);
+        Route::post('/conversations/groups',                         [ConversationController::class, 'createGroup']);
+        Route::get('/conversations/{id}/messages',                   [MessageController::class, 'index']);
+        Route::post('/conversations/{id}/messages',                  [MessageController::class, 'store']);
+        Route::put('/conversations/{id}/messages/{messageId}',       [MessageController::class, 'update']);
+        Route::delete('/conversations/{id}/messages/{messageId}',    [MessageController::class, 'destroy']);
+        Route::post('/conversations/{id}/messages/{messageId}/react',[MessageController::class, 'react']);
+        Route::post('/conversations/{id}/read',                      [ConversationController::class, 'markRead']);
+
+        Route::get('/stories/feed', [StoryController::class, 'feed']);
+        Route::get('/stories/my',   [StoryController::class, 'myStories']);
+        Route::apiResource('stories', StoryController::class);
+        Route::post('/stories/{id}/react',    [StoryController::class, 'react']);
+        Route::get('/stories/{id}/viewers',   [StoryController::class, 'viewers']);
+        Route::post('/stories/{id}/archive',  [StoryController::class, 'archive']);
+
+        Route::get('/notifications',              [NotificationController::class, 'index']);
+        Route::post('/notifications/{id}/read',   [NotificationController::class, 'markRead']);
+        Route::post('/notifications/read-all',    [NotificationController::class, 'markAllRead']);
+        Route::delete('/notifications/{id}',      [NotificationController::class, 'destroy']);
+
+        Route::get('/subscriptions/current',       [SubscriptionController::class, 'current']);
+        Route::post('/subscriptions/checkout',     [SubscriptionController::class, 'checkout']);
+        Route::post('/subscriptions/cancel',       [SubscriptionController::class, 'cancel']);
+        Route::post('/subscriptions/verify-iap',   [SubscriptionController::class, 'verifyIap']);
+
+        Route::get('/settings',                    [SettingsController::class, 'index']);
+        Route::put('/settings/notifications',      [SettingsController::class, 'updateNotifications']);
+        Route::put('/settings/privacy',            [SettingsController::class, 'updatePrivacy']);
+        Route::post('/settings/change-password',   [SettingsController::class, 'changePassword']);
+        Route::post('/settings/change-email',      [SettingsController::class, 'changeEmail']);
+        Route::get('/settings/sessions',           [SettingsController::class, 'sessions']);
+        Route::delete('/settings/sessions/{id}',   [SettingsController::class, 'revokeSession']);
+        Route::post('/settings/download-data',     [SettingsController::class, 'downloadData']);
+
+        Route::post('/media/upload',               [MediaController::class, 'upload']);
+
+        // Creator routes
+        Route::middleware('role:creator|administrator')->prefix('creator')->group(function () {
+            Route::get('/overview',   [CreatorController::class, 'overview']);
+            Route::get('/analytics',  [CreatorController::class, 'analytics']);
+            Route::get('/revenue',    [CreatorController::class, 'revenue']);
+        });
+        Route::post('/creator/apply', [CreatorController::class, 'apply']);
+    });
+
+    // Admin routes
+    Route::middleware(['auth:sanctum', 'role:administrator|moderator|support'])->prefix('admin')->group(function () {
+
+        Route::middleware('role:administrator|moderator|support')->group(function () {
+            Route::get('/users',          [Admin\UserController::class, 'index']);
+            Route::get('/users/{id}',     [Admin\UserController::class, 'show']);
+            Route::get('/tickets',        [Admin\TicketController::class, 'index']);
+            Route::get('/tickets/{id}',   [Admin\TicketController::class, 'show']);
+            Route::post('/tickets/{id}/reply', [Admin\TicketController::class, 'reply']);
+        });
+
+        Route::middleware('role:administrator|moderator')->group(function () {
+            Route::get('/reports',        [Admin\ReportController::class, 'index']);
+            Route::get('/reports/{id}',   [Admin\ReportController::class, 'show']);
+            Route::put('/reports/{id}',   [Admin\ReportController::class, 'update']);
+            Route::post('/users/{id}/warn', [Admin\UserController::class, 'warn']);
+        });
+
+        Route::middleware('role:administrator')->group(function () {
+            Route::put('/users/{id}',           [Admin\UserController::class, 'update']);
+            Route::post('/users/{id}/suspend',  [Admin\UserController::class, 'suspend']);
+            Route::post('/users/{id}/ban',      [Admin\UserController::class, 'ban']);
+            Route::post('/users/{id}/unban',    [Admin\UserController::class, 'unban']);
+            Route::put('/tickets/{id}',         [Admin\TicketController::class, 'update']);
+            Route::post('/tickets',             [Admin\TicketController::class, 'store']);
+            Route::get('/analytics/overview',   [Admin\AnalyticsController::class, 'overview']);
+            Route::get('/analytics/users',      [Admin\AnalyticsController::class, 'users']);
+            Route::get('/settings',             [Admin\SettingController::class, 'index']);
+            Route::put('/settings',             [Admin\SettingController::class, 'update']);
+            Route::apiResource('/email/templates', Admin\EmailTemplateController::class);
+            Route::apiResource('/email/campaigns', Admin\EmailCampaignController::class);
+            Route::post('/email/campaigns/{id}/send',   [Admin\EmailCampaignController::class, 'send']);
+            Route::post('/email/campaigns/{id}/cancel', [Admin\EmailCampaignController::class, 'cancel']);
+            Route::get('/audit-logs',           [Admin\AuditLogController::class, 'index']);
+            Route::get('/verifications',        [Admin\VerificationController::class, 'index']);
+            Route::put('/verifications/{id}',   [Admin\VerificationController::class, 'update']);
+        });
+    });
+});
+
+
+================================================================
+STEP 7: SET UP QUEUE WORKERS
+================================================================
+
+# Create a Supervisor config for queue workers:
+# /etc/supervisor/conf.d/vibechat-worker.conf
+
+[program:vibechat-worker]
+process_name=%(program_name)s_%(process_num)02d
+command=php /var/www/vibechat-api/artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=8
+redirect_stderr=true
+stdout_logfile=/var/www/vibechat-api/storage/logs/worker.log
+stopwaitsecs=3600
+
+# Apply and start:
+supervisorctl reread
+supervisorctl update
+supervisorctl start vibechat-worker:*
+
+# Create scheduled task for:
+# - Story expiry cleanup
+# - Streak updates
+# - Campaign sending
+# In app/Console/Kernel.php:
+$schedule->command('stories:expire')->hourly();
+$schedule->command('streaks:update')->dailyAt('00:01');
+$schedule->command('campaigns:process')->everyFiveMinutes();
+
+
+================================================================
+STEP 8: SET UP ARTISAN COMMANDS
+================================================================
+
+php artisan make:command Stories/ExpireStories
+php artisan make:command Streaks/UpdateStreaks
+php artisan make:command Campaigns/ProcessCampaigns
+php artisan make:command Users/CleanDeletedAccounts
+php artisan make:command Analytics/RecordDailyMetrics
+
+
+================================================================
+STEP 9: WEBSOCKETS (REAL-TIME)
+================================================================
+
+Option A: Laravel WebSockets (self-hosted, free)
+  composer require beyondcode/laravel-websockets
+  php artisan vendor:publish --provider="BeyondCode\LaravelWebSockets\WebSocketsServiceProvider" --tag="migrations"
+  php artisan vendor:publish --provider="BeyondCode\LaravelWebSockets\WebSocketsServiceProvider" --tag="config"
+  php artisan migrate
+  php artisan websockets:serve
+
+Option B: Pusher (managed service, recommended for production)
+  - Create account at pusher.com
+  - Create a new Channels app
+  - Copy credentials to .env (PUSHER_APP_ID, KEY, SECRET, CLUSTER)
+  - No server setup needed
+
+Events to create:
+  php artisan make:event MessageSent
+  php artisan make:event UserOnlineStatusChanged
+  php artisan make:event FriendRequestReceived
+  php artisan make:event NotificationCreated
+  php artisan make:event TypingIndicator
+
+
+================================================================
+STEP 10: FIRST RUN VERIFICATION
+================================================================
+
+# Start the development server
+php artisan serve
+
+# Test the auth endpoints:
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","email":"test@example.com","password":"password123","password_confirmation":"password123","device_id":"test123","platform":"android"}'
+
+# Expected: 201 response with access_token and user object
+
+# Test login:
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123","device_id":"test123","platform":"android"}'
+
+# Test authenticated endpoint:
+curl http://localhost:8000/api/v1/users/me \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Verify admin route is blocked for normal user:
+curl http://localhost:8000/api/v1/admin/users \
+  -H "Authorization: Bearer YOUR_TOKEN"
+# Expected: 403 Forbidden
+
+================================================================
+STEP 11: GOOGLE & APPLE OAUTH BACKEND VERIFICATION
+================================================================
+
+Install verification libraries:
+  composer require google/apiclient
+  # OR simpler JWT verification:
+  composer require firebase/php-jwt
+
+For Google ID token verification (AuthController@google):
+
+  use Google\Client as GoogleClient;
+
+  public function google(Request $request) {
+      $request->validate(['id_token' => 'required|string']);
+
+      $client = new GoogleClient(['client_id' => config('services.google.client_id')]);
+      $payload = $client->verifyIdToken($request->id_token);
+
+      if (!$payload) {
+          return response()->json(['message' => 'Invalid Google token'], 401);
+      }
+
+      $user = User::firstOrCreate(
+          ['email' => $payload['email']],
+          [
+              'username'     => Str::slug($payload['name']) . '_' . Str::random(4),
+              'display_name' => $payload['name'],
+              'avatar_url'   => $payload['picture'] ?? null,
+              'email_verified_at' => now(),
+              'password'     => Hash::make(Str::random(32)),
+          ]
+      );
+
+      $token = $user->createToken('google_login')->plainTextToken;
+      return response()->json(['access_token' => $token, 'user' => $user]);
+  }
+
+config/services.php — add:
+  'google' => [
+      'client_id' => env('GOOGLE_CLIENT_ID'),
+  ],
+
+.env — add:
+  GOOGLE_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
+
+
+For Apple Sign-In backend verification (AuthController@apple):
+
+  # Install: composer require patrickbussmann/oauth2-apple
+  # OR verify the JWT id_token manually using Apple's public keys:
+  # https://appleid.apple.com/auth/keys
+
+  public function apple(Request $request) {
+      $request->validate([
+          'code'     => 'required|string',
+          'id_token' => 'required|string',
+      ]);
+
+      // Decode the JWT id_token (header.payload.signature)
+      // Verify signature using Apple's public keys (fetched from /auth/keys)
+      // Extract email and sub (Apple user ID) from payload
+
+      $appleUserId = $decoded->sub;   // unique Apple user identifier
+      $email       = $decoded->email ?? null;
+
+      $user = User::firstOrCreate(
+          ['apple_id' => $appleUserId],
+          [
+              'email'    => $email,
+              'username' => 'apple_' . Str::random(8),
+              'email_verified_at' => now(),
+              'password' => Hash::make(Str::random(32)),
+          ]
+      );
+
+      $token = $user->createToken('apple_login')->plainTextToken;
+      return response()->json(['access_token' => $token, 'user' => $user]);
+  }
+
+.env — add:
+  APPLE_TEAM_ID=YOUR_TEAM_ID
+  APPLE_KEY_ID=YOUR_KEY_ID
+  APPLE_SERVICE_ID=com.darvin.vibechat.siwa
+  APPLE_PRIVATE_KEY_PATH=/secure/path/AuthKey_XXXXXXXX.p8
+
+
+================================================================
+STEP 12: ADMIN USER EDIT ENDPOINT
+================================================================
+
+The Flutter EditUserScreen calls PUT /admin/users/{id} with:
+  {
+    "display_name":   "New Name",
+    "username":       "new_username",
+    "email":          "new@example.com",
+    "phone":          "+1555000000",
+    "bio":            "Updated bio",
+    "location":       "New York, USA",
+    "pronouns":       "they/them",
+    "account_status": "verified",
+    "staff_role":     "moderator",
+    "privacy_level":  "public",
+    "is_verified":    true,
+    "password":       "newpassword123"   // only if changing password
+  }
+
+Admin\UserController@update implementation:
+
+  public function update(Request $request, User $user) {
+      $data = $request->validate([
+          'display_name'   => 'sometimes|string|max:50',
+          'username'       => 'sometimes|string|max:30|unique:users,username,' . $user->id,
+          'email'          => 'sometimes|email|unique:users,email,' . $user->id,
+          'phone'          => 'sometimes|nullable|string|max:20',
+          'bio'            => 'sometimes|nullable|string|max:150',
+          'location'       => 'sometimes|nullable|string|max:100',
+          'pronouns'       => 'sometimes|nullable|string|max:30',
+          'account_status' => 'sometimes|in:normal,verified,creator',
+          'staff_role'     => 'sometimes|in:none,support,moderator,administrator',
+          'privacy_level'  => 'sometimes|in:public,friends_only,private',
+          'is_verified'    => 'sometimes|boolean',
+          'password'       => 'sometimes|nullable|string|min:8',
+      ]);
+
+      if (isset($data['password'])) {
+          $data['password'] = Hash::make($data['password']);
+      }
+
+      $user->update($data);
+
+      // Log the admin action
+      AdminAuditLog::create([
+          'admin_id'    => auth()->id(),
+          'action'      => 'user_edited',
+          'target_type' => 'user',
+          'target_id'   => $user->id,
+          'details'     => json_encode(array_keys($data)),
+      ]);
+
+      return response()->json(['user' => $user->fresh()]);
+  }
+
+
+================================================================
+STEP 13: SMTP QUICK SETUP (MAILGUN)
+================================================================
+
+1. Sign up at mailgun.com (free: 100 emails/day)
+2. Add domain: vibechat.app
+3. Mailgun gives you DNS records — add them at your registrar:
+   - TXT record for SPF
+   - TXT record for DKIM
+   - CNAME: email.vibechat.app → mailgun.org
+4. Wait for domain verification (15 min to 24 hours)
+5. Go to Domain Settings → SMTP credentials → Create credentials
+6. Update .env:
+   MAIL_MAILER=mailgun
+   MAILGUN_DOMAIN=vibechat.app
+   MAILGUN_SECRET=key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   MAIL_FROM_ADDRESS=noreply@vibechat.app
+   MAIL_FROM_NAME=VibeChat
+
+7. Test in Laravel tinker:
+   Mail::raw('Test email from VibeChat', function($m) {
+       $m->to('yourtest@gmail.com')->subject('Test');
+   });
+
+================================================================
+ END - Backend Setup Guide
+================================================================

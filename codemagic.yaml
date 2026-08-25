@@ -1,0 +1,34 @@
+# Codemagic free-tier build config (alternative to GitHub Actions)
+# Free tier: 500 build minutes / month, no credit card, cloud Mac + Linux runners.
+#
+# HOW TO USE
+# 1.  Sign in at https://codemagic.io with GitHub / GitLab / Bitbucket.
+# 2.  Add the SwiftSnap repo.
+# 3.  Codemagic auto-detects this `codemagic.yaml` and offers a "Build now"
+#     button.
+# 4.  When the build finishes, Codemagic emails you a link to download the APK.
+
+workflows:
+  android-debug:
+    name: SwiftSnap Android Debug APK
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      java: 17
+    scripts:
+      - name: Fetch dependencies
+        script: flutter pub get
+      - name: Analyze
+        script: flutter analyze --no-fatal-infos --no-fatal-warnings || true
+      - name: Build debug APK
+        script: flutter build apk --debug
+    artifacts:
+      - build/**/outputs/apk/**/*.apk
+      - flutter_drive.log
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com   # ← replace with your email
+        notify:
+          success: true
+          failure: true
