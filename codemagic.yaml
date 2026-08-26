@@ -1,34 +1,55 @@
-# Codemagic free-tier build config (alternative to GitHub Actions)
-# Free tier: 500 build minutes / month, no credit card, cloud Mac + Linux runners.
-#
-# HOW TO USE
-# 1.  Sign in at https://codemagic.io with GitHub / GitLab / Bitbucket.
-# 2.  Add the SwiftSnap repo.
-# 3.  Codemagic auto-detects this `codemagic.yaml` and offers a "Build now"
-#     button.
-# 4.  When the build finishes, Codemagic emails you a link to download the APK.
+# SwiftSnap Android build configuration
+# Builds BOTH an installable APK and an Android App Bundle.
 
 workflows:
   android-debug:
-    name: SwiftSnap Android Debug APK
+    name: SwiftSnap Android Debug APK + AAB
     max_build_duration: 60
+
     environment:
       flutter: stable
       java: 17
+
     scripts:
       - name: Fetch dependencies
-        script: flutter pub get
+        script: |
+          flutter clean
+          flutter pub get
+
       - name: Analyze
-        script: flutter analyze --no-fatal-infos --no-fatal-warnings || true
+        script: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings || true
+
       - name: Build debug APK
-        script: flutter build apk --debug
+        script: |
+          flutter build apk --debug
+
+      - name: Build debug AAB
+        script: |
+          flutter build appbundle --debug
+
+      - name: Verify Android artifacts
+        script: |
+          echo "=== APK ==="
+          ls -lh build/app/outputs/flutter-apk/app-debug.apk
+
+          echo "=== AAB ==="
+          ls -lh build/app/outputs/bundle/debug/app-debug.aab
+
+          test -s build/app/outputs/flutter-apk/app-debug.apk
+          test -s build/app/outputs/bundle/debug/app-debug.aab
+
+          echo "Both Android artifacts exist and are non-zero."
+
     artifacts:
-      - build/**/outputs/apk/**/*.apk
+      - build/app/outputs/flutter-apk/app-debug.apk
+      - build/app/outputs/bundle/debug/app-debug.aab
       - flutter_drive.log
+
     publishing:
       email:
         recipients:
-          - your-email@example.com   # ← replace with your email
+          - ghostsecteamllc@gmail.com
         notify:
           success: true
           failure: true
