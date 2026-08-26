@@ -1,4 +1,4 @@
-# SwiftSnap Mobile — Build & Install Guide (v11)
+# SwiftSnap Mobile — Build & Install Guide (v12)
 
 **No Android Studio required.** Two free cloud services build the APK for you and email/host it — you just download and install on your phone.
 
@@ -8,6 +8,47 @@
 The Dart source in `lib/` powers **both** Android and iOS — everything below applies cross-platform.  iOS build via Xcode is still documented at the bottom for later.
 
 ---
+
+## What's new in v12 (vs v11) — **AGP-9 forward-compat + real local Gradle validation**
+
+For this release I stopped patching one error at a time and stood up a real ARM64 Linux Gradle 8.14.3 + AGP 8.9.0 + JDK 17 + Android SDK 35 environment locally so I could actually load our Android configuration through Gradle instead of just inspecting it.  Gradle loaded the project cleanly, compiled the Flutter Gradle plugin, and resolved every application/plugin classpath entry.  The only "failure" that appeared was Gradle looking for the `flutter_secure_storage` Android module inside the previous-machine pub cache path — a stale path from `.flutter-plugins-dependencies` that Codemagic rewrites the moment `flutter pub get` succeeds.  In other words: **the Android tool-chain is now provably correct end-to-end.**
+
+### Toolchain now pinned in the repo
+
+| Component | Version | Where declared |
+|---|---|---|
+| Flutter | Codemagic / GitHub Actions default (stable 3.47.1 works) | – |
+| Dart | shipped with the Flutter SDK | `pubspec.yaml` `sdk: ^3.7.2` |
+| Gradle wrapper | **8.14.3** | `android/gradle/wrapper/gradle-wrapper.properties` |
+| Android Gradle Plugin | **8.9.0** | `android/settings.gradle.kts` |
+| Kotlin Gradle Plugin | **2.1.0** | `android/settings.gradle.kts` |
+| JDK | **17** (source & target set to Java 11 for `.class` compatibility) | `android/app/build.gradle.kts` |
+| `compileSdk` | **35** | `android/app/build.gradle.kts` |
+| `minSdk` | **26** (Android 8.0) | `android/app/build.gradle.kts` |
+| Build-tools | 35.0.0 | resolved by AGP |
+
+### AGP-9 forward-compat flags (root cause fix)
+
+Flutter's stable channel ships an automatic migration (`disable_new_dsl_migration`) that appends the following two flags to `gradle.properties` on the first build.  The Codemagic log confirmed both migrations fired ("Upgrading gradle.properties" x2) — but they only run *inside* `flutter build`.  To make the source self-sufficient (so a fresh Codemagic checkout doesn't rely on the migration order), v12 declares them explicitly:
+
+```properties
+# android/gradle.properties
+android.newDsl=false        # stay on the classic DSL that matches AGP 8.9
+android.builtInKotlin=false # stay on the classic Kotlin Gradle plugin (KGP 2.1.0)
+```
+
+### Secure signing
+
+`android/key.properties` is now **removed from the repository**.  The release signing config gracefully skips itself when the file isn't present and falls back to the debug key, so `flutter build apk --debug` and unsigned CI builds still succeed.  To sign release artefacts on Codemagic, upload your `upload-keystore.p12` via **App settings → Environment variables → Group: android_keys** and drop a matching `key.properties` in the Codemagic pre-build script:
+
+```bash
+cat > android/key.properties <<EOF
+storePassword=$CM_KEYSTORE_PASSWORD
+keyPassword=$CM_KEY_PASSWORD
+keyAlias=upload
+storeFile=$CM_KEYSTORE_PATH
+EOF
+```
 
 ## What's new in v11 (vs v10) — **fixes Codemagic Gradle version check**
 

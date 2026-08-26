@@ -41,18 +41,29 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String
+            // Only wire up the release signing config when key.properties is
+            // present.  On CI (Codemagic) this file is provided via a build
+            // trigger step or an "Encrypted files" upload — if it's absent we
+            // deliberately skip the config so `flutter build apk --debug`
+            // still succeeds without secrets in the repo.
+            if (keystorePropertiesFile.exists()) {
+                keyAlias      = keystoreProperties["keyAlias"] as String
+                keyPassword   = keystoreProperties["keyPassword"] as String
+                storeFile     = keystoreProperties["storeFile"]?.let { file(it) }
+                storePassword = keystoreProperties["storePassword"] as String
+            }
         }
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("release")
+            // Use the release signing config only when it was wired up above;
+            // otherwise fall back to the debug key so `flutter run --release`
+            // and unsigned CI builds still complete.
+            signingConfig = if (keystorePropertiesFile.exists())
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
         }
     }
 }
