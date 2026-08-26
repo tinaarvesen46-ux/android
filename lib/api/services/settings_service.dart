@@ -20,7 +20,7 @@ class SettingsService {
   Future<ApiResponse<Map<String, dynamic>>> updatePrivacySettings(
     Map<String, dynamic> settings,
   ) async {
-    return await _client.patch(
+    return await _client.put(
       ApiConfig.privacySettings,
       data: settings,
       fromJson: (data) => data as Map<String, dynamic>,
@@ -58,7 +58,7 @@ class SettingsService {
   Future<ApiResponse<Map<String, dynamic>>> updateNotificationSettings(
     Map<String, dynamic> settings,
   ) async {
-    return await _client.patch(
+    return await _client.put(
       ApiConfig.notificationsSettings,
       data: settings,
       fromJson: (data) => data as Map<String, dynamic>,
@@ -77,7 +77,7 @@ class SettingsService {
   Future<ApiResponse<Map<String, dynamic>>> updateAppearanceSettings(
     Map<String, dynamic> settings,
   ) async {
-    return await _client.patch(
+    return await _client.put(
       ApiConfig.appearanceSettings,
       data: settings,
       fromJson: (data) => data as Map<String, dynamic>,
@@ -186,16 +186,27 @@ class SettingsService {
     );
   }
   
-  /// Delete account
+  /// Delete account — backend route is POST /security/delete-account (requires password).
   Future<ApiResponse<void>> deleteAccount({
     required String password,
     String? reason,
   }) async {
-    return await _client.delete(
+    return await _client.post(
       ApiConfig.deleteAccount,
       data: {
         'password': password,
         if (reason != null) 'reason': reason,
+      },
+    );
+  }
+
+  /// Current 2FA status from users/me (`two_factor_enabled`).
+  Future<ApiResponse<bool>> getTwoFactorStatus() async {
+    return await _client.get<bool>(
+      ApiConfig.currentUser,
+      fromJson: (data) {
+        final v = (data is Map) ? data['two_factor_enabled'] : null;
+        return v == 1 || v == true;
       },
     );
   }

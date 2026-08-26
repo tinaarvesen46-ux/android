@@ -10,6 +10,7 @@ import 'backup_encryption_screen.dart';
 import 'app_permissions_screen.dart';
 import 'trusted_contacts_screen.dart';
 import 'download_data_screen.dart';
+import 'two_factor_auth_screen.dart';
 
 class SecurityScreen extends StatefulWidget {
   const SecurityScreen({super.key});
@@ -19,9 +20,31 @@ class SecurityScreen extends StatefulWidget {
 }
 
 class _SecurityScreenState extends State<SecurityScreen> {
+  final SettingsService _settingsService = SettingsService();
   bool _twoFactorEnabled = false;
   bool _biometricEnabled = true;
-  bool _loginAlertsEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTwoFactor();
+  }
+
+  Future<void> _loadTwoFactor() async {
+    final res = await _settingsService.getTwoFactorStatus();
+    if (mounted && res.isSuccess) {
+      setState(() => _twoFactorEnabled = res.data ?? false);
+    }
+  }
+
+  Future<void> _openTwoFactor() async {
+    HapticFeedback.lightImpact();
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TwoFactorAuthScreen()),
+    );
+    _loadTwoFactor();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -208,12 +231,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
                     title: 'Two-Factor Authentication',
                     subtitle: 'Add an extra layer of security',
                     value: _twoFactorEnabled,
-                    onChanged: (value) {
-                      setState(() => _twoFactorEnabled = value);
-                      if (value) {
-                        _show2FASetup();
-                      }
-                    },
+                    onChanged: (value) => _openTwoFactor(),
                     recommended: true,
                   ),
                   _buildDivider(),
@@ -273,7 +291,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
                   _buildNavigationTile(
                     icon: Icons.devices_rounded,
                     title: 'Active Sessions',
-                    subtitle: '3 devices currently logged in',
+                    subtitle: 'Manage your logged-in devices',
                     onTap: () => _showActiveSessions(),
                   ),
                   _buildDivider(),
@@ -285,14 +303,6 @@ class _SecurityScreenState extends State<SecurityScreen> {
                       context,
                       MaterialPageRoute(builder: (context) => const LoginHistoryScreen()),
                     ),
-                  ),
-                  _buildDivider(),
-                  _buildSwitchTile(
-                    icon: Icons.notifications_active_rounded,
-                    title: 'Login Alerts',
-                    subtitle: 'Get notified of new logins',
-                    value: _loginAlertsEnabled,
-                    onChanged: (value) => setState(() => _loginAlertsEnabled = value),
                   ),
                 ],
               ),
@@ -331,27 +341,13 @@ class _SecurityScreenState extends State<SecurityScreen> {
               child: Column(
                 children: [
                   _buildNavigationTile(
-                    icon: Icons.security_rounded,
-                    title: 'Security Checkup',
-                    subtitle: 'Review your security settings',
-                    onTap: () => _runSecurityCheckup(),
-                  ),
-                  _buildDivider(),
-                  _buildNavigationTile(
                     icon: Icons.shield_rounded,
                     title: 'Suspicious Activity',
-                    subtitle: 'No suspicious activity detected',
+                    subtitle: 'Review unusual account activity',
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const SuspiciousActivityScreen()),
                     ),
-                  ),
-                  _buildDivider(),
-                  _buildNavigationTile(
-                    icon: Icons.report_rounded,
-                    title: 'Security Alerts',
-                    subtitle: 'View all security notifications',
-                    onTap: () => _showSecurityAlerts(),
                   ),
                 ],
               ),
@@ -688,53 +684,6 @@ class _SecurityScreenState extends State<SecurityScreen> {
     );
   }
 
-  void _show2FASetup() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: SwiftSnapTheme.surfaceColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.lock_clock_rounded, color: SwiftSnapTheme.primaryPurple),
-            SizedBox(width: 12),
-            Text(
-              '2FA Setup',
-              style: TextStyle(color: SwiftSnapTheme.textPrimary, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        content: Text(
-          'Set up two-factor authentication to add an extra layer of security to your account.',
-          style: TextStyle(color: SwiftSnapTheme.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() => _twoFactorEnabled = false);
-              Navigator.pop(context);
-            },
-            child: const Text('Cancel', style: TextStyle(color: SwiftSnapTheme.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('2FA setup started...'),
-                  backgroundColor: SwiftSnapTheme.primaryPurple,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              );
-            },
-            child: const Text('Continue', style: TextStyle(color: SwiftSnapTheme.primaryPurple)),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showActiveSessions() {
     final settingsService = SettingsService();
     showModalBottomSheet(
@@ -874,78 +823,6 @@ class _SecurityScreenState extends State<SecurityScreen> {
     );
   }
 
-  void _runSecurityCheckup() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        Future.delayed(const Duration(seconds: 2), () {
-          Navigator.pop(context);
-          _showSecurityCheckupResults();
-        });
-        
-        return AlertDialog(
-          backgroundColor: SwiftSnapTheme.surfaceColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation(SwiftSnapTheme.primaryPurple),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Running security checkup...',
-                style: TextStyle(color: SwiftSnapTheme.textSecondary),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showSecurityCheckupResults() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: SwiftSnapTheme.surfaceColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 28),
-            SizedBox(width: 12),
-            Text(
-              'All Clear!',
-              style: TextStyle(color: SwiftSnapTheme.textPrimary, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        content: Text(
-          'Your account security is strong. No issues were found.',
-          style: TextStyle(color: SwiftSnapTheme.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close', style: TextStyle(color: SwiftSnapTheme.primaryPurple)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSecurityAlerts() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('No security alerts'),
-        backgroundColor: SwiftSnapTheme.accentGreen,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
   void _exportData() {
     Navigator.push(
       context,
@@ -953,8 +830,8 @@ class _SecurityScreenState extends State<SecurityScreen> {
     );
   }
 
-  void _signOutAllDevices() {
-    showDialog(
+  Future<void> _signOutAllDevices() async {
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: SwiftSnapTheme.surfaceColor,
@@ -963,31 +840,41 @@ class _SecurityScreenState extends State<SecurityScreen> {
           'Sign Out All Devices?',
           style: TextStyle(color: SwiftSnapTheme.textPrimary, fontWeight: FontWeight.w700),
         ),
-        content: Text(
-          'You will be logged out from all devices except this one.',
+        content: const Text(
+          'You will be logged out from all other active sessions except this one.',
           style: TextStyle(color: SwiftSnapTheme.textSecondary),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel', style: TextStyle(color: SwiftSnapTheme.textSecondary)),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Signed out from all other devices'),
-                  backgroundColor: SwiftSnapTheme.accentGreen,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Sign Out', style: TextStyle(color: SwiftSnapTheme.busy)),
           ),
         ],
       ),
+    );
+    if (confirm != true) return;
+
+    // Fetch active sessions and revoke every non-current one via the real API.
+    final sessionsRes = await _settingsService.getActiveSessions();
+    if (!mounted) return;
+    if (!sessionsRes.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(sessionsRes.errorMessage)));
+      return;
+    }
+    final sessions = sessionsRes.data ?? [];
+    int revoked = 0;
+    for (final s in sessions) {
+      if (s['current'] == true) continue;
+      final r = await _settingsService.revokeSession('${s['id']}');
+      if (r.isSuccess) revoked++;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Signed out of $revoked other device(s)')),
     );
   }
 }

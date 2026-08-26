@@ -9,7 +9,10 @@ import '../models/chat_model.dart';
 import '../widgets/chat_tile.dart';
 import '../widgets/story_circle.dart';
 import 'chat_detail_screen.dart';
-import 'story_creation_screen.dart';
+import 'camera_first_screen.dart';
+import 'notifications_screen.dart';
+import '../widgets/report_dialog.dart';
+import '../api/services/user_service.dart';
 
 class ChatsScreen extends StatefulWidget {
   const ChatsScreen({super.key});
@@ -155,6 +158,7 @@ class _ChatsScreenState extends State<ChatsScreen> with SingleTickerProviderStat
               ),
       ),
       actions: [
+        _buildNotificationBell(),
         _buildIconButton(
           icon: _isSearching ? Icons.close_rounded : Icons.search_rounded,
           onTap: _toggleSearch,
@@ -165,6 +169,59 @@ class _ChatsScreenState extends State<ChatsScreen> with SingleTickerProviderStat
         ),
         const SizedBox(width: 8),
       ],
+    );
+  }
+
+  Widget _buildNotificationBell() {
+    final unread = context.watch<AppProvider>().unreadNotificationCount;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+        );
+      },
+      child: Container(
+        width: 44,
+        height: 44,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          color: SwiftSnapTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(SwiftSnapTheme.radiusMd),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Icon(Icons.notifications_rounded,
+                color: SwiftSnapTheme.textPrimary, size: 22),
+            if (unread > 0)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  decoration: BoxDecoration(
+                    color: SwiftSnapTheme.primaryPink,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: SwiftSnapTheme.backgroundDark, width: 1.5),
+                  ),
+                  child: Text(
+                    unread > 99 ? '99+' : '$unread',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
   
@@ -468,14 +525,20 @@ class _ChatsScreenState extends State<ChatsScreen> with SingleTickerProviderStat
     context.read<AppProvider>().markStoryAsViewed(story.id);
   }
   
-  void _addStory() {
+  void _addStory() async {
     HapticFeedback.mediumImpact();
-    Navigator.push(
+    final result = await Navigator.push<CameraResult>(
       context,
-      MaterialPageRoute(
-        builder: (context) => const StoryCreationScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const CameraFirstScreen()),
     );
+    if (result == null || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Uploading to your story…')));
+    final err = await context
+        .read<AppProvider>()
+        .publishStoryFromFile(result.file.path, isVideo: result.isVideo);
+    if (!mounted) return;
+    messenger.showSnackBar(SnackBar(content: Text(err ?? 'Posted to your story!')));
   }
   
   void _showNewChatSheet() {
@@ -569,10 +632,33 @@ class _ChatOptionsSheet extends StatelessWidget {
           ),
           _buildOption(
             context,
+            icon: Icons.flag_outlined,
+            label: 'Report User',
+            onTap: () {
+              Navigator.pop(context);
+              ReportDialog.show(
+                context,
+                userId: chat.participant.id,
+                targetLabel: '@${chat.participant.username}',
+              );
+            },
+          ),
+          _buildOption(
+            context,
             icon: Icons.block_outlined,
             label: 'Block User',
             color: SwiftSnapTheme.busy,
-            onTap: () => Navigator.pop(context),
+            onTap: () async {
+              Navigator.pop(context);
+              final res = await UserService().blockUser(chat.participant.id);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(res.isSuccess
+                      ? 'Blocked @${chat.participant.username}'
+                      : res.errorMessage)),
+                );
+              }
+            },
           ),
           _buildOption(
             context,

@@ -651,7 +651,7 @@ class _ProfileSheet extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildProfileStat('Friends', '2.4K'),
+                  _buildProfileStat('Friends', '${user.friendCount}'),
                   Container(
                     width: 1,
                     height: 40,
@@ -663,7 +663,7 @@ class _ProfileSheet extends StatelessWidget {
                     height: 40,
                     color: Colors.white.withOpacity(0.1),
                   ),
-                  _buildProfileStat('Score', '15.2K'),
+                  _buildProfileStat('Score', '${user.snapScore}'),
                 ],
               ),
             ),

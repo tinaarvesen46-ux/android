@@ -331,8 +331,17 @@ class ApiClient {
       case DioExceptionType.connectionError:
         message = 'No internet connection';
         break;
+      case DioExceptionType.badCertificate:
+        message = 'Secure connection failed (certificate error). '
+            'Please check your device date & time and try again.';
+        break;
       default:
-        message = 'An unexpected error occurred';
+        // Surface the underlying cause so genuine device/TLS/socket errors
+        // are diagnosable instead of a vague generic message.
+        final underlying = error.message ?? error.error?.toString();
+        message = (underlying != null && underlying.isNotEmpty)
+            ? 'Network error: $underlying'
+            : 'An unexpected error occurred';
     }
     
     return ApiResponse.error(

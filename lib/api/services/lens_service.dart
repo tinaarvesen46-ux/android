@@ -39,6 +39,29 @@ class LensService {
     } catch (_) { return const []; }
   }
 
+  /// Creator's own lenses (all statuses) — GET /lenses/my.
+  Future<List<Map<String, dynamic>>> myLenses() async {
+    try {
+      final res = await _dio.get('/lenses/my', options: Options(headers: await _auth()));
+      final data = res.data;
+      if (data is List) return List<Map<String, dynamic>>.from(data);
+      if (data is Map && data['data'] is List) {
+        return List<Map<String, dynamic>>.from(data['data'] as List);
+      }
+      return const [];
+    } catch (_) { return const []; }
+  }
+
+  /// Real creator analytics — GET /lens-studio/analytics?days=N.
+  /// Returns {range, lenses, series, heatmap, totals} or null on failure.
+  Future<Map<String, dynamic>?> analytics({int days = 14}) async {
+    try {
+      final res = await _dio.get('/lens-studio/analytics',
+          queryParameters: {'days': days}, options: Options(headers: await _auth()));
+      return Map<String, dynamic>.from(res.data as Map);
+    } catch (_) { return null; }
+  }
+
   Future<List<Map<String, dynamic>>> beautyPresets() async {
     try {
       final res = await _dio.get('/lenses/beauty-presets', options: Options(headers: await _auth()));

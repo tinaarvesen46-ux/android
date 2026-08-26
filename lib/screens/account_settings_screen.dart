@@ -140,11 +140,11 @@ class AccountSettingsScreen extends StatelessWidget {
               _buildAccountTile(
                 context,
                 title: 'Email',
-                value: user.email ?? 'email@example.com',
+                value: user.email ?? 'Not set',
                 onTap: () => _navigateToEdit(
                   context,
                   'Email',
-                  user.email ?? 'email@example.com',
+                  user.email ?? 'Not set',
                   (value) => user.copyWith(email: value),
                 ),
               ),

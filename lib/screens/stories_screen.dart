@@ -7,7 +7,8 @@ import 'dart:ui';
 import '../theme/theme.dart';
 import '../providers/app_provider.dart';
 import '../models/story_model.dart';
-import 'story_creation_screen.dart';
+import '../widgets/report_dialog.dart';
+import 'camera_first_screen.dart';
 
 class StoriesScreen extends StatefulWidget {
   const StoriesScreen({super.key});
@@ -30,6 +31,22 @@ class _StoriesScreenState extends State<StoriesScreen> with SingleTickerProvider
     _tabController.dispose();
     super.dispose();
   }
+
+  Future<void> _createStory() async {
+    final result = await Navigator.push<CameraResult>(
+      context,
+      MaterialPageRoute(builder: (_) => const CameraFirstScreen()),
+    );
+    if (result == null || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Uploading to your story…')));
+    final err = await context
+        .read<AppProvider>()
+        .publishStoryFromFile(result.file.path, isVideo: result.isVideo);
+    if (!mounted) return;
+    messenger.showSnackBar(SnackBar(content: Text(err ?? 'Posted to your story!')));
+  }
+
 
   void _showStoriesSettings() {
     showModalBottomSheet(
@@ -178,12 +195,7 @@ class _StoriesScreenState extends State<StoriesScreen> with SingleTickerProvider
       onTap: () {
         HapticFeedback.lightImpact();
         if (icon == Icons.add_circle_outline_rounded) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const StoryCreationScreen(),
-            ),
-          );
+          _createStory();
         } else if (icon == Icons.settings_outlined) {
           _showStoriesSettings();
         }
@@ -277,92 +289,38 @@ class _StoriesScreenState extends State<StoriesScreen> with SingleTickerProvider
   }
   
   Widget _buildSpotlightGrid() {
-    final spotlightImages = [
-      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600',
-      'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600',
-      'https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?w=600',
-      'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=600',
-      'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600',
-      'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600',
-    ];
-    
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
-        SliverToBoxAdapter(
-          child: Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: SwiftSnapTheme.primaryGradient,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: SwiftSnapTheme.glowShadow(
-                SwiftSnapTheme.primaryPurple,
-                intensity: 0.3,
-              ),
-            ),
-            child: Row(
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 72,
+                  height: 72,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
+                    color: SwiftSnapTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.08)),
                   ),
-                  child: const Icon(
-                    Icons.star_rounded,
-                    color: Colors.white,
-                    size: 28,
-                  ),
+                  child: const Icon(Icons.star_outline_rounded, color: SwiftSnapTheme.primaryPurple, size: 34),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Creator Spotlight',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Discover trending content from top creators',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Spotlight is coming soon',
+                  style: TextStyle(color: SwiftSnapTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'A curated feed of trending creator content will appear here once it\'s available on the server.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 13, height: 1.4),
                 ),
               ],
-            ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-          sliver: SliverGrid(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 0.65,
-            ),
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                return _SpotlightCard(
-                  imageUrl: spotlightImages[index % spotlightImages.length],
-                  index: index,
-                ).animate(delay: Duration(milliseconds: 50 * index))
-                  .fadeIn(duration: 300.ms)
-                  .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1));
-              },
-              childCount: 6,
             ),
           ),
         ),
@@ -570,134 +528,6 @@ class _StoryCard extends StatelessWidget {
   }
 }
 
-class _SpotlightCard extends StatelessWidget{
-  final String imageUrl;
-  final int index;
-  
-  const _SpotlightCard({
-    required this.imageUrl,
-    required this.index,
-  });
-  
-  @override
-  Widget build(BuildContext context) {
-    final viewCounts = ['12.5K', '8.3K', '45.2K', '3.1K', '21.8K', '15.7K'];
-    
-    return GestureDetector(
-      onTap: () => HapticFeedback.lightImpact(),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  color: SwiftSnapTheme.surfaceColor,
-                ),
-                errorWidget: (context, url, error) => Container(
-                  color: SwiftSnapTheme.surfaceColor,
-                ),
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.7),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    stops: const [0.4, 1.0],
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 12,
-                right: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: SwiftSnapTheme.secondaryGradient,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 14,
-                      ),
-                      const SizedBox(width: 2),
-                      Text(
-                        viewCounts[index % viewCounts.length],
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 12,
-                left: 12,
-                right: 12,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: SwiftSnapTheme.primaryGradient,
-                      ),
-                      child: const Icon(
-                        Icons.person_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Creator',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _StoryViewerScreen extends StatefulWidget {
   final StoryModel story;
   
@@ -835,6 +665,23 @@ class _StoryViewerScreenState extends State<_StoryViewerScreen>
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            _progressController.stop();
+                            ReportDialog.show(
+                              context,
+                              contentType: 'story',
+                              contentId: widget.story.id,
+                              targetLabel: 'this story',
+                            ).then((_) {
+                              if (mounted) _progressController.forward();
+                            });
+                          },
+                          icon: const Icon(
+                            Icons.flag_outlined,
+                            color: Colors.white,
                           ),
                         ),
                         IconButton(

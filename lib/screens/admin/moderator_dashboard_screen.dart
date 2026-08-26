@@ -197,7 +197,7 @@ class _ModeratorDashboardScreenState extends State<ModeratorDashboardScreen> {
         const SizedBox(width: 10),
         Expanded(child: _statCard('Reviewed\n(7d)', '23', Icons.fact_check_rounded, const Color(0xFF10B981))),
         const SizedBox(width: 10),
-        Expanded(child: _statCard('Accuracy', '97%', Icons.verified_rounded, const Color(0xFFFBBF24))),
+        Expanded(child: _statCard('Accuracy', '—', Icons.verified_rounded, const Color(0xFFFBBF24))),
       ],
     );
   }

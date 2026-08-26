@@ -639,7 +639,7 @@ class _SupportDashboardScreenState extends State<SupportDashboardScreen> {
             _statRow('Avg First Response', '1h 23m'),
             _statRow('Avg Resolution Time', '4h 12m'),
             _statRow('Satisfaction Rating', '4.8 / 5.0 ⭐'),
-            _statRow('SLA Compliance', '94%'),
+            _statRow('SLA Compliance', '—'),
             const SizedBox(height: 16),
           ],
         ),

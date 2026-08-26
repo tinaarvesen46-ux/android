@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api_client.dart';
 import '../api_config.dart';
 import '../api_response.dart';
@@ -64,6 +65,8 @@ class AuthService {
     final response = await _client.post(ApiConfig.logout);
     if (response.isSuccess) {
       await _client.clearTokens();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('access_token');
     }
     return response;
   }
@@ -138,9 +141,13 @@ class AuthService {
     );
   }
   
-  /// Save tokens after successful login/register
+  /// Save tokens after successful login/register.
+  /// Persists to secure storage (used by ApiClient/Dio) AND SharedPreferences
+  /// (used by LensService, presence, location, streak & media services).
   Future<void> saveTokens(String accessToken, String refreshToken) async {
     await _client.setTokens(accessToken, refreshToken);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('access_token', accessToken);
   }
   
   /// Check if user is authenticated

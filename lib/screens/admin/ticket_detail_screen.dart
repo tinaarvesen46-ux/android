@@ -41,8 +41,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       id: 'r${DateTime.now().millisecondsSinceEpoch}',
       authorId: 'admin',
       authorName: 'Support Team',
-      authorAvatar:
-          'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100',
+      authorAvatar: '',
       isStaff: true,
       content: content,
       createdAt: DateTime.now(),

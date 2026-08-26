@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../theme/theme.dart';
+import '../api/services/settings_service.dart';
 
+/// Two-Factor Authentication — bound to Laravel /settings/2fa/{enable,disable,verify}.
+/// Current status is read from users/me (two_factor_enabled).
+/// NOTE: backend TOTP verification is currently a placeholder (accepts any 6-digit
+/// code while 2FA is enabled); the secret/otpauth returned by enable is real.
 class TwoFactorAuthScreen extends StatefulWidget {
   const TwoFactorAuthScreen({super.key});
 
@@ -11,469 +15,200 @@ class TwoFactorAuthScreen extends StatefulWidget {
 }
 
 class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
-  bool _isEnabled = true;
-  bool _smsEnabled = true;
-  bool _appEnabled = false;
-  bool _emailEnabled = true;
+  final SettingsService _service = SettingsService();
+  bool _loading = true;
+  bool _busy = false;
+  bool _enabled = false;
+  String? _secret;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final res = await _service.getTwoFactorStatus();
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (res.isSuccess) {
+        _enabled = res.data ?? false;
+      } else {
+        _error = res.errorMessage;
+      }
+    });
+  }
+
+  Future<void> _enable() async {
+    HapticFeedback.lightImpact();
+    setState(() => _busy = true);
+    final res = await _service.enable2FA();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (res.isSuccess && res.data != null) {
+        _enabled = true;
+        _secret = res.data!['secret']?.toString();
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(res.isSuccess ? 'Two-factor authentication enabled' : res.errorMessage)),
+    );
+  }
+
+  Future<void> _disable() async {
+    final controller = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: SwiftSnapTheme.surfaceColor,
+        title: const Text('Disable 2FA', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          style: const TextStyle(color: SwiftSnapTheme.textPrimary),
+          decoration: const InputDecoration(
+            hintText: 'Confirm with your password',
+            hintStyle: TextStyle(color: SwiftSnapTheme.textSecondary),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Disable')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _busy = true);
+    final res = await _service.disable2FA(password: controller.text);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (res.isSuccess) {
+        _enabled = false;
+        _secret = null;
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(res.isSuccess ? 'Two-factor authentication disabled' : res.errorMessage)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: SwiftSnapTheme.backgroundDark,
-      body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            _buildHeader(context),
-            _buildStatusCard(),
-            _buildMasterToggle(),
-            if (_isEnabled) ...[
-              _buildMethodsSection(),
-              _buildBackupCodesCard(),
-            ],
-            const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
-          ],
+      appBar: AppBar(
+        backgroundColor: SwiftSnapTheme.surfaceColor,
+        title: const Text('Two-Factor Authentication'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            Navigator.pop(context);
+          },
         ),
       ),
+      body: _buildBody(),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: Row(
-          children: [
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.pop(context);
-              },
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: SwiftSnapTheme.surfaceColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                ),
-                child: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: SwiftSnapTheme.textPrimary,
-                  size: 18,
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            const Text(
-              'Two-Factor Authentication',
-              style: TextStyle(
-                color: SwiftSnapTheme.textPrimary,
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusCard() {
-    return SliverToBoxAdapter(
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: _isEnabled
-                ? [
-                    SwiftSnapTheme.accentGreen.withOpacity(0.15),
-                    SwiftSnapTheme.accentGreen.withOpacity(0.05),
-                  ]
-                : [
-                    SwiftSnapTheme.busy.withOpacity(0.15),
-                    SwiftSnapTheme.busy.withOpacity(0.05),
-                  ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: _isEnabled
-                ? SwiftSnapTheme.accentGreen.withOpacity(0.3)
-                : SwiftSnapTheme.busy.withOpacity(0.3),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: (_isEnabled ? SwiftSnapTheme.accentGreen : SwiftSnapTheme.busy).withOpacity(0.2),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(
-                _isEnabled ? Icons.shield_rounded : Icons.shield_outlined,
-                color: _isEnabled ? SwiftSnapTheme.accentGreen : SwiftSnapTheme.busy,
-                size: 32,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _isEnabled ? 'Enabled' : 'Disabled',
-                    style: TextStyle(
-                      color: _isEnabled ? SwiftSnapTheme.accentGreen : SwiftSnapTheme.busy,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _isEnabled
-                        ? 'Your account is protected with 2FA'
-                        : 'Enable 2FA to secure your account',
-                    style: TextStyle(
-                      color: SwiftSnapTheme.textSecondary,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.2, end: 0),
-    );
-  }
-
-  Widget _buildMasterToggle() {
-    return SliverToBoxAdapter(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: SwiftSnapTheme.surfaceColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                gradient: SwiftSnapTheme.primaryGradient,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.lock_rounded, color: Colors.white, size: 22),
-            ),
-            const SizedBox(width: 16),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Enable 2FA',
-                    style: TextStyle(
-                      color: SwiftSnapTheme.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Add an extra layer of security',
-                    style: TextStyle(
-                      color: SwiftSnapTheme.textMuted,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Switch(
-              value: _isEnabled,
-              onChanged: (value) {
-                HapticFeedback.lightImpact();
-                setState(() => _isEnabled = value);
-              },
-              activeColor: SwiftSnapTheme.accentGreen,
-              activeTrackColor: SwiftSnapTheme.accentGreen.withOpacity(0.3),
-            ),
-          ],
-        ),
-      ).animate(delay: 100.ms).fadeIn(duration: 300.ms),
-    );
-  }
-
-  Widget _buildMethodsSection() {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: SwiftSnapTheme.primaryPurple));
+    }
+    if (_error != null) {
+      return Center(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Padding(
-              padding: EdgeInsets.only(left: 4, bottom: 12),
-              child: Text(
-                'AUTHENTICATION METHODS',
-                style: TextStyle(
-                  color: SwiftSnapTheme.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
+            Text(_error!, style: const TextStyle(color: SwiftSnapTheme.textSecondary)),
+            const SizedBox(height: 12),
+            TextButton(onPressed: _load, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: SwiftSnapTheme.surfaceColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+          ),
+          child: Row(
+            children: [
+              Icon(_enabled ? Icons.verified_user_rounded : Icons.shield_outlined,
+                  color: _enabled ? SwiftSnapTheme.accentGreen : SwiftSnapTheme.textSecondary, size: 40),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_enabled ? '2FA is ON' : '2FA is OFF',
+                        style: const TextStyle(color: SwiftSnapTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
+                    Text(
+                      _enabled
+                          ? 'Your account has an extra layer of security.'
+                          : 'Add an extra layer of security to your account.',
+                      style: const TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 13),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                color: SwiftSnapTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
-              ),
-              child: Column(
-                children: [
-                  _buildMethodTile(
-                    icon: Icons.sms_rounded,
-                    title: 'SMS Verification',
-                    subtitle: 'Receive codes via text message',
-                    value: _smsEnabled,
-                    onChanged: (value) => setState(() => _smsEnabled = value),
-                  ),
-                  _buildDivider(),
-                  _buildMethodTile(
-                    icon: Icons.phone_android_rounded,
-                    title: 'Authenticator App',
-                    subtitle: 'Google Authenticator or similar',
-                    value: _appEnabled,
-                    onChanged: (value) => setState(() => _appEnabled = value),
-                  ),
-                  _buildDivider(),
-                  _buildMethodTile(
-                    icon: Icons.email_rounded,
-                    title: 'Email Verification',
-                    subtitle: 'Receive codes via email',
-                    value: _emailEnabled,
-                    onChanged: (value) => setState(() => _emailEnabled = value),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ).animate(delay: 200.ms).fadeIn(duration: 300.ms),
-      ),
-    );
-  }
-
-  Widget _buildMethodTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              gradient: SwiftSnapTheme.primaryGradient,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: Colors.white, size: 22),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
+        ),
+        if (_secret != null) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: SwiftSnapTheme.backgroundCard,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: SwiftSnapTheme.primaryPurple.withOpacity(0.4)),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: SwiftSnapTheme.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: SwiftSnapTheme.textMuted,
-                    fontSize: 12,
-                  ),
-                ),
+                const Text('Your authenticator secret',
+                    style: TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 13)),
+                const SizedBox(height: 8),
+                SelectableText(_secret!,
+                    style: const TextStyle(color: SwiftSnapTheme.textPrimary, fontSize: 18, letterSpacing: 2, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                const Text('Add this key to your authenticator app (e.g. Google Authenticator).',
+                    style: TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 12)),
               ],
             ),
           ),
-          Switch(
-            value: value,
-            onChanged: (newValue) {
-              HapticFeedback.lightImpact();
-              onChanged(newValue);
-            },
-            activeColor: SwiftSnapTheme.primaryPurple,
-            activeTrackColor: SwiftSnapTheme.primaryPurple.withOpacity(0.3),
-          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBackupCodesCard() {
-    return SliverToBoxAdapter(
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: SwiftSnapTheme.surfaceColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    gradient: SwiftSnapTheme.primaryGradient,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.key_rounded, color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 16),
-                const Expanded(
-                  child: Text(
-                    'Backup Codes',
-                    style: TextStyle(
-                      color: SwiftSnapTheme.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _enabled ? SwiftSnapTheme.busy : SwiftSnapTheme.primaryPurple,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Generate backup codes to access your account if you lose your 2FA device.',
-              style: TextStyle(
-                color: SwiftSnapTheme.textSecondary,
-                fontSize: 14,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.mediumImpact();
-                _showBackupCodes();
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  gradient: SwiftSnapTheme.primaryGradient,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'Generate Backup Codes',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ).animate(delay: 300.ms).fadeIn(duration: 300.ms),
-    );
-  }
-
-  Widget _buildDivider() {
-    return Divider(
-      height: 1,
-      color: Colors.white.withOpacity(0.06),
-      indent: 72,
-    );
-  }
-
-  void _showBackupCodes() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: SwiftSnapTheme.surfaceColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Backup Codes',
-          style: TextStyle(color: SwiftSnapTheme.textPrimary, fontWeight: FontWeight.w700),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Save these codes in a secure location. Each code can only be used once.',
-              style: TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: SwiftSnapTheme.backgroundCard,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: List.generate(
-                  4,
-                  (index) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Text(
-                      '${index + 1}. XXXX-XXXX-XXXX',
-                      style: const TextStyle(
-                        color: SwiftSnapTheme.textPrimary,
-                        fontFamily: 'monospace',
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            onPressed: _busy ? null : (_enabled ? _disable : _enable),
+            child: _busy
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : Text(_enabled ? 'Disable 2FA' : 'Enable 2FA',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Backup codes copied to clipboard'),
-                  backgroundColor: SwiftSnapTheme.accentGreen,
-                ),
-              );
-            },
-            child: const Text('Copy', style: TextStyle(color: SwiftSnapTheme.primaryPurple)),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

@@ -32,7 +32,7 @@ class UserService {
     if (location != null) data['location'] = location;
     if (privacyLevel != null) data['privacy_level'] = privacyLevel;
     
-    return await _client.patch(
+    return await _client.put(
       ApiConfig.updateProfile,
       data: data,
       fromJson: (data) => UserModel.fromJson(data),
@@ -44,7 +44,7 @@ class UserService {
     return await _client.uploadFile(
       ApiConfig.uploadAvatar,
       filePath,
-      fieldName: 'avatar',
+      fieldName: 'file',
       fromJson: (data) => data as Map<String, dynamic>,
     );
   }
@@ -54,7 +54,7 @@ class UserService {
     return await _client.uploadFile(
       ApiConfig.uploadCover,
       filePath,
-      fieldName: 'cover',
+      fieldName: 'file',
       fromJson: (data) => data as Map<String, dynamic>,
     );
   }
@@ -126,7 +126,7 @@ class UserService {
   Future<ApiResponse<Map<String, dynamic>>> updateSettings(
     Map<String, dynamic> settings,
   ) async {
-    return await _client.patch(
+    return await _client.put(
       ApiConfig.userSettings,
       data: settings,
       fromJson: (data) => data as Map<String, dynamic>,

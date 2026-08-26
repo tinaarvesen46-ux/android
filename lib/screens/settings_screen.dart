@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../theme/theme.dart';
 import '../providers/app_provider.dart';
+import '../api/services/settings_service.dart';
 import 'account_settings_screen.dart';
 import 'password_settings_screen.dart';
 import 'notifications_settings_screen.dart';
@@ -289,8 +290,8 @@ class SettingsScreen extends StatelessWidget {
                     children: [
                       _buildProfileTile(
                         context,
-                        name: user?.displayName ?? 'Joseph R AIA-SE',
-                        username: user?.username ?? '@josephaia',
+                        name: user?.displayName ?? '',
+                        username: user != null ? '@${user.username}' : '',
                         avatarUrl: user?.avatarUrl ?? '',
                       ),
                     ],
@@ -545,45 +546,81 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _showDeleteAccountDialog(BuildContext context) {
+    final passwordController = TextEditingController();
+    final settingsService = SettingsService();
+    bool deleting = false;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: SwiftSnapTheme.surfaceColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: const Text(
-          'Delete Account?',
-          style: TextStyle(
-            color: SwiftSnapTheme.textPrimary,
-            fontWeight: FontWeight.w700,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: SwiftSnapTheme.surfaceColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-        ),
-        content: Text(
-          'This action cannot be undone. All your data will be permanently deleted.',
-          style: TextStyle(
-            color: SwiftSnapTheme.textSecondary,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: SwiftSnapTheme.textPrimary),
+          title: const Text(
+            'Delete Account?',
+            style: TextStyle(
+              color: SwiftSnapTheme.textPrimary,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Handle account deletion
-            },
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
-            ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'This action cannot be undone. Confirm with your password to permanently delete your account.',
+                style: TextStyle(color: SwiftSnapTheme.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                style: const TextStyle(color: SwiftSnapTheme.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Password',
+                  hintStyle: const TextStyle(color: SwiftSnapTheme.textSecondary),
+                  filled: true,
+                  fillColor: SwiftSnapTheme.backgroundDark,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: deleting ? null : () => Navigator.pop(dialogContext),
+              child: const Text('Cancel', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
+            ),
+            TextButton(
+              onPressed: deleting
+                  ? null
+                  : () async {
+                      if (passwordController.text.isEmpty) return;
+                      setDialogState(() => deleting = true);
+                      final res = await settingsService.deleteAccount(
+                        password: passwordController.text,
+                      );
+                      if (!dialogContext.mounted) return;
+                      if (res.isSuccess) {
+                        Navigator.pop(dialogContext);
+                        context.read<AppProvider>().logout();
+                        Navigator.of(context).popUntil((route) => route.isFirst);
+                      } else {
+                        setDialogState(() => deleting = false);
+                        ScaffoldMessenger.of(dialogContext).showSnackBar(
+                          SnackBar(content: Text(res.errorMessage)),
+                        );
+                      }
+                    },
+              child: deleting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red))
+                  : const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
       ),
     );
   }

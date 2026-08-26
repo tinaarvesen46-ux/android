@@ -459,6 +459,31 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Publish a real story from a captured media file:
+  /// media/upload -> stories (create) -> refresh. Returns null on success or an
+  /// error message on failure. Used by the camera FAB and the Stories/Chats
+  /// add-story entry points so every story is persisted on the backend.
+  Future<String?> publishStoryFromFile(String filePath, {bool isVideo = false}) async {
+    final storyService = StoryService();
+    final type = isVideo ? 'video' : 'image';
+    final upload = await storyService.uploadStoryMedia(filePath, type: type);
+    if (!upload.success || upload.data == null) {
+      return upload.message ?? 'Upload failed';
+    }
+    final data = upload.data!;
+    final mediaUrl = (data['url'] ?? data['media_url'] ?? data['path'] ?? '').toString();
+    final mediaId = (data['id'] ?? data['media_id'] ?? '').toString();
+    if (mediaUrl.isEmpty) return 'Upload returned no media URL';
+    final created = await storyService.createStory(
+      mediaUrl: mediaUrl,
+      type: type,
+      mediaId: mediaId.isEmpty ? null : mediaId,
+    );
+    if (!created.success) return created.message ?? 'Could not post story';
+    await refresh();
+    return null;
+  }
+
   void markStoryAsViewed(String storyId) {
     final index = _stories.indexWhere((s) => s.id == storyId);
     if (index != -1 && _stories[index].hasUnviewed) {
