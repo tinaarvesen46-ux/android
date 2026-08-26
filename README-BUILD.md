@@ -1,4 +1,4 @@
-# SwiftSnap Mobile — Build & Install Guide (v8)
+# SwiftSnap Mobile — Build & Install Guide (v9)
 
 **No Android Studio required.** Two free cloud services build the APK for you and email/host it — you just download and install on your phone.
 
@@ -8,6 +8,10 @@
 The Dart source in `lib/` powers **both** Android and iOS — everything below applies cross-platform.  iOS build via Xcode is still documented at the bottom for later.
 
 ---
+
+## What's new in v9 (vs v8) — **fixes the permission_handler conflict**
+
+- 🚑 **`pub get` blocker fixed** — bumped `permission_handler` from `^11.3.1` to `^12.0.1` so it satisfies `ar_flutter_plugin_plus`'s own `^12.0.1` constraint.  The public `permission_handler` API used by SwiftSnap (`Permission.camera`, `Permission.microphone`, `Permission.location`, `.request()`, `.status`) is source-compatible between v11 and v12, so no runtime code changes were required.  Verified by re-reading every call site in `lib/`.
 
 ## What's new in v8 (vs v7) — **fixes Codemagic build failure**
 
