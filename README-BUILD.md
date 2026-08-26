@@ -1,4 +1,4 @@
-# SwiftSnap Mobile — Build & Install Guide (v12)
+# SwiftSnap Mobile — Build & Install Guide (v13)
 
 **No Android Studio required.** Two free cloud services build the APK for you and email/host it — you just download and install on your phone.
 
@@ -9,11 +9,46 @@ The Dart source in `lib/` powers **both** Android and iOS — everything below a
 
 ---
 
+## What's new in v13 (vs v12) — **AGP 8.9.0 → 8.11.1 (Flutter minimum)**
+
+Codemagic surfaced a new hard-fail on the v12 build:
+
+> Your project's Android Gradle Plugin version (Android Gradle Plugin version 8.9.0) is lower than Flutter's minimum supported version of Android Gradle Plugin version 8.11.1.
+
+This isn't a warning any more — Flutter's Gradle plugin refuses to apply itself. **Fix:** bumped the AGP declaration in `android/settings.gradle.kts` from `8.9.0` → `8.11.1` (exactly Flutter's floor — not AGP 9.x, because Flutter's stable channel on Codemagic isn't asking for 9.x yet).
+
+### What did **not** change
+
+- Gradle wrapper stays on **8.14.3** — AGP 8.11.x's `minGradleVersion` is 8.9, so 8.14.3 satisfies it comfortably (a Gradle upgrade to 9.x would be premature; Codemagic's warning about 9.1 is future-support only).
+- Kotlin Gradle plugin stays on **2.1.0** — AGP 8.11.x is fully compatible with KGP 2.1.x (min KGP for AGP 8.11 is 1.9.24).
+- JDK stays on **17** — the required minimum for AGP 8.11.x.
+- `android.newDsl=false` + `android.builtInKotlin=false` **stay** in `gradle.properties`.  AGP 8.11.x still accepts the classic DSL; only AGP 9.x enforces the new DSL migration.  Keeping the flags means the source doesn't rely on Flutter's `disable_new_dsl_migration` firing in the right order on a clean Codemagic checkout.
+- `key.properties` stays **removed** from the repo.  `signingConfigs.release` still falls back to the debug key when absent.
+- All Flutter plugin versions from v10 (`geolocator ^14.0.2`, `permission_handler ^12.0.1`, `ar_flutter_plugin_plus ^1.1.3`, `google_mlkit_face_detection ^0.13.0`, etc.) are **untouched** — they already passed `flutter pub get` in v11/v12.
+
+### Toolchain now pinned in the repo
+
+| Component | Version | Where declared |
+|---|---|---|
+| Flutter | Codemagic / GitHub Actions `stable` channel | `codemagic.yaml` |
+| Dart | shipped with the Flutter SDK | `pubspec.yaml` `sdk: ^3.7.2` |
+| Gradle wrapper | **8.14.3** | `android/gradle/wrapper/gradle-wrapper.properties` |
+| Android Gradle Plugin | **8.11.1** ← bumped in v13 | `android/settings.gradle.kts` |
+| Kotlin Gradle Plugin | **2.1.0** | `android/settings.gradle.kts` |
+| JDK | **17** (source & target set to Java 11 for `.class` compatibility) | `android/app/build.gradle.kts` |
+| `compileSdk` | **35** | `android/app/build.gradle.kts` |
+| `minSdk` | **26** (Android 8.0) | `android/app/build.gradle.kts` |
+| Build-tools | 35.0.0 | resolved by AGP |
+
+### Honest verification limits
+
+I attempted a full local `flutter build apk --debug` on this ARM64 Linux container using qemu-x86_64 emulation for the Flutter/Dart SDK and the Android build-tools binaries.  `flutter pub get` succeeded end-to-end.  Direct `gradle :app:tasks` under Flutter 3.47.1 revealed that the *current bleeding-edge Flutter* now requires Kotlin ≥ 2.2.20 and AGP ≥ 9.0.1 — but Codemagic's own error surfaced AGP 8.11.1 as the floor, which means Codemagic is on Flutter 3.35.x–3.44.x where 8.11.1 is exactly right.  The version bump in v13 targets that exact floor.  If Codemagic surfaces a subsequent concrete failure (e.g. a plugin needing an AGP 8.11-specific API) I'll patch that specific plugin without downgrading AGP.
+
 ## What's new in v12 (vs v11) — **AGP-9 forward-compat + real local Gradle validation**
 
 For this release I stopped patching one error at a time and stood up a real ARM64 Linux Gradle 8.14.3 + AGP 8.9.0 + JDK 17 + Android SDK 35 environment locally so I could actually load our Android configuration through Gradle instead of just inspecting it.  Gradle loaded the project cleanly, compiled the Flutter Gradle plugin, and resolved every application/plugin classpath entry.  The only "failure" that appeared was Gradle looking for the `flutter_secure_storage` Android module inside the previous-machine pub cache path — a stale path from `.flutter-plugins-dependencies` that Codemagic rewrites the moment `flutter pub get` succeeds.  In other words: **the Android tool-chain is now provably correct end-to-end.**
 
-### Toolchain now pinned in the repo
+### Toolchain history (v12)
 
 | Component | Version | Where declared |
 |---|---|---|
