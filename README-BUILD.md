@@ -1,4 +1,4 @@
-# SwiftSnap Mobile — Build & Install Guide (v10)
+# SwiftSnap Mobile — Build & Install Guide (v11)
 
 **No Android Studio required.** Two free cloud services build the APK for you and email/host it — you just download and install on your phone.
 
@@ -8,6 +8,37 @@
 The Dart source in `lib/` powers **both** Android and iOS — everything below applies cross-platform.  iOS build via Xcode is still documented at the bottom for later.
 
 ---
+
+## What's new in v11 (vs v10) — **fixes Codemagic Gradle version check**
+
+Codemagic passed `flutter pub get` and reached the Android Gradle step, then Flutter's built-in guard rejected Gradle 8.13:
+
+> Your project's Gradle version (8.13.0) is lower than Flutter's minimum supported version of 8.14.0.
+
+**Fix:** bumped the wrapper from `gradle-8.13-all.zip` → `gradle-8.14.3-all.zip` (latest 8.14.x stable).
+
+Compatibility matrix confirmed:
+
+| Component | Version | Notes |
+|---|---|---|
+| Gradle wrapper | **8.14.3** | Was 8.13 — now above the Flutter minimum |
+| AGP | 8.9.0 | Unchanged.  Supports Gradle 8.11.1 – 8.14.x, so 8.14.3 is inside its supported band. |
+| Kotlin | 2.1.0 | Unchanged.  Compatible with AGP 8.9. |
+| Java | 11 (source & target) | Unchanged. |
+| `compileSdk` | 35 | Unchanged. |
+| `minSdk` | 26 (Android 8.0) | Unchanged. |
+
+**About the AGP 9 warning in the Codemagic log** — the "Starting AGP 9+, only the new DSL interface will be read" line is Flutter's *forward-looking hint*, not the cause of this failure.  Our AGP is 8.9, so we stay on the classic DSL.  No AGP 9 migration required.
+
+### Codemagic recipe
+
+```bash
+flutter clean
+flutter pub get
+flutter analyze
+flutter build appbundle --debug
+flutter build apk --debug
+```
 
 ## What's new in v10 (vs v9) — **full dependency audit, no more guesses**
 
