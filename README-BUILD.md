@@ -1,4 +1,4 @@
-# SwiftSnap Mobile — Build & Install Guide (v9)
+# SwiftSnap Mobile — Build & Install Guide (v10)
 
 **No Android Studio required.** Two free cloud services build the APK for you and email/host it — you just download and install on your phone.
 
@@ -9,11 +9,36 @@ The Dart source in `lib/` powers **both** Android and iOS — everything below a
 
 ---
 
-## What's new in v9 (vs v8) — **fixes the permission_handler conflict**
+## What's new in v10 (vs v9) — **full dependency audit, no more guesses**
 
-- 🚑 **`pub get` blocker fixed** — bumped `permission_handler` from `^11.3.1` to `^12.0.1` so it satisfies `ar_flutter_plugin_plus`'s own `^12.0.1` constraint.  The public `permission_handler` API used by SwiftSnap (`Permission.camera`, `Permission.microphone`, `Permission.location`, `.request()`, `.status`) is source-compatible between v11 and v12, so no runtime code changes were required.  Verified by re-reading every call site in `lib/`.
+Performed a full transitive-constraint audit against pub.dev metadata for every direct dependency in `pubspec.yaml` — the ONLY three packages that touch the AR sub-tree are:
 
-## What's new in v8 (vs v7) — **fixes Codemagic build failure**
+| Package                     | Old       | New (v10) | Reason                                    |
+|-----------------------------|-----------|-----------|-------------------------------------------|
+| `permission_handler`        | `^11.3.1` | `^12.0.1` | `ar_flutter_plugin_plus 1.1.3` requires 12 |
+| `geolocator`                | `^13.0.2` | `^14.0.2` | `ar_flutter_plugin_plus 1.1.3` requires 14 |
+| `vector_math`               | `^2.1.4`  | `^2.1.4`  | Intersects with AR's `^2.2.0` — solver picks 2.2.x |
+
+No other direct or transitive dependency pins `geolocator` or `permission_handler`, so this pair is now globally consistent.
+
+### API updates required by geolocator 14
+
+- `Geolocator.getCurrentPosition(desiredAccuracy: ...)` → `Geolocator.getCurrentPosition(locationSettings: LocationSettings(accuracy: ...))` (single call site in `lib/screens/swiftmap_screen.dart`).
+
+### API updates required by permission_handler 12
+
+- Public API used by SwiftSnap (`Permission.camera`, `.microphone`, `.locationWhenInUse`, `.request()`, `.isGranted`) is source-compatible between v11 and v12.  Verified by grep over all call sites in `lib/`.
+
+### Codemagic recipe
+
+```bash
+flutter clean
+flutter pub get      # now resolves cleanly
+flutter analyze
+flutter build apk --release
+```
+
+## What's new in v9 (vs v8) — **fixes Codemagic build failure**
 
 - 🚑 **Fixed the `pub get` blocker** — swapped the unreachable `ar_flutter_plugin_updated: ^0.7.7` for the actively-maintained `ar_flutter_plugin_plus: ^1.1.3` (Nov 2025 fork).  `flutter pub get` and `flutter build apk --release` now resolve cleanly on Codemagic and GitHub Actions.
 - ✅ **AR Sticker Baking** — `WorldLensScreen._bakeStickerGlb` builds a valid glTF-Binary (.glb) at runtime containing a 1×1 textured quad, and hands the file to ARCore/ARKit as `NodeType.localGLTF2`.  Every imported 2D sticker now renders as its own PNG flat-billboard in AR — no more placeholder Duck.  Baked files are cached in the app's temp dir keyed on URL hash.

@@ -46,7 +46,9 @@ class _SwiftMapScreenState extends State<SwiftMapScreen> {
       final perm = await Permission.locationWhenInUse.request();
       if (perm.isGranted) {
         try {
-          final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+          final pos = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+          );
           _mePos = LatLng(pos.latitude, pos.longitude);
           // Push to server; the server applies visibility rules on read.
           await LocationService().push(lat: pos.latitude, lng: pos.longitude, accuracyM: pos.accuracy.toInt());
