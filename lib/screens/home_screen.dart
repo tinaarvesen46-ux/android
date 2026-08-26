@@ -320,12 +320,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ? (specialIdleColor ?? SwiftSnapTheme.primaryPink)
         : SwiftSnapTheme.textPrimary;
 
-    return GestureDetector(
+    return Expanded(
+      child: GestureDetector(
       onTap: () => _onNavTap(index, provider),
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -403,10 +404,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
-              child: Text(label),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                softWrap: false,
+              ),
             ),
           ],
         ),
+      ),
       ),
     );
   }

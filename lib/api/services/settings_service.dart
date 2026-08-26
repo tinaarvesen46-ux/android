@@ -140,7 +140,7 @@ class SettingsService {
         'page': page,
         'per_page': perPage,
       },
-      fromJson: (data) => data is List 
+      fromJson: (data) => data is List
           ? data.cast<Map<String, dynamic>>()
           : [data as Map<String, dynamic>],
     );
@@ -150,7 +150,7 @@ class SettingsService {
   Future<ApiResponse<List<Map<String, dynamic>>>> getActiveSessions() async {
     return await _client.get<List<Map<String, dynamic>>>(
       ApiConfig.activeSessions,
-      fromJson: (data) => data is List 
+      fromJson: (data) => data is List
           ? data.cast<Map<String, dynamic>>()
           : [data as Map<String, dynamic>],
     );
@@ -172,7 +172,7 @@ class SettingsService {
         'page': page,
         'per_page': perPage,
       },
-      fromJson: (data) => data is List 
+      fromJson: (data) => data is List
           ? data.cast<Map<String, dynamic>>()
           : [data as Map<String, dynamic>],
     );

@@ -223,7 +223,7 @@ class _CameraFirstScreenState extends State<CameraFirstScreen> with WidgetsBindi
         Positioned(
           bottom: 120, left: 0, right: 0,
           child: SizedBox(
-            height: 66,
+            height: 88,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -232,7 +232,10 @@ class _CameraFirstScreenState extends State<CameraFirstScreen> with WidgetsBindi
                 final active = i == _presetIdx;
                 return GestureDetector(
                   onTap: () => setState(() => _presetIdx = i),
-                  child: Column(children: [
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                     Container(
                       width: 52, height: 52,
                       decoration: BoxDecoration(
@@ -245,7 +248,16 @@ class _CameraFirstScreenState extends State<CameraFirstScreen> with WidgetsBindi
                             style: TextStyle(color: Colors.white, fontWeight: active ? FontWeight.w800 : FontWeight.w500)),
                       ),
                     ),
-                    Text(p['label'] ?? '', style: TextStyle(color: active ? Colors.white : Colors.white70, fontSize: 11)),
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      width: 56,
+                      child: Text(p['label'] ?? '',
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                          style: TextStyle(color: active ? Colors.white : Colors.white70, fontSize: 11)),
+                    ),
                   ]),
                 );
               },

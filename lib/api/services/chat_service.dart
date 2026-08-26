@@ -19,7 +19,7 @@ class ChatService {
         'page': page,
         'per_page': perPage,
       },
-      fromJson: (data) => data is List 
+      fromJson: (data) => data is List
           ? data.cast<Map<String, dynamic>>()
           : [data as Map<String, dynamic>],
     );
@@ -45,7 +45,7 @@ class ChatService {
         'page': page,
         'per_page': perPage,
       },
-      fromJson: (data) => data is List 
+      fromJson: (data) => data is List
           ? data.cast<Map<String, dynamic>>()
           : [data as Map<String, dynamic>],
     );
@@ -140,7 +140,7 @@ class ChatService {
         'page': page,
         'per_page': perPage,
       },
-      fromJson: (data) => data is List 
+      fromJson: (data) => data is List
           ? data.cast<Map<String, dynamic>>()
           : [data as Map<String, dynamic>],
     );

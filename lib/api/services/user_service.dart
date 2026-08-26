@@ -72,8 +72,8 @@ class UserService {
         'page': page,
         'per_page': perPage,
       },
-      fromJson: (data) => data is List 
-          ? data.map((item) => UserModel.fromJson(item)).toList() as List<UserModel>
+      fromJson: (data) => data is List
+          ? data.map((item) => UserModel.fromJson(item)).toList()
           : [UserModel.fromJson(data)],
     );
   }
@@ -89,8 +89,8 @@ class UserService {
         'page': page,
         'per_page': perPage,
       },
-      fromJson: (data) => data is List 
-          ? data.map((item) => UserModel.fromJson(item)).toList() as List<UserModel>
+      fromJson: (data) => data is List
+          ? data.map((item) => UserModel.fromJson(item)).toList()
           : [UserModel.fromJson(data)],
     );
   }
@@ -116,8 +116,8 @@ class UserService {
         'page': page,
         'per_page': perPage,
       },
-      fromJson: (data) => data is List 
-          ? data.map((item) => UserModel.fromJson(item)).toList() as List<UserModel>
+      fromJson: (data) => data is List
+          ? data.map((item) => UserModel.fromJson(item)).toList()
           : [UserModel.fromJson(data)],
     );
   }

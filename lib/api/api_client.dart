@@ -273,24 +273,14 @@ class ApiClient {
         T? result;
         
         if (fromJson != null && data != null) {
-          // Handle array responses
-          if (data is List) {
-            result = data.map((item) => fromJson(item)).toList() as T;
-          } else if (data is Map<String, dynamic>) {
-            // Handle Laravel standard response format
-            if (data.containsKey('data')) {
-              final responseData = data['data'];
-              if (responseData is List) {
-                result = responseData.map((item) => fromJson(item)).toList() as T;
-              } else {
-                result = fromJson(responseData);
-              }
-            } else {
-              result = fromJson(data);
-            }
-          } else {
-            result = fromJson(data);
+          // Unwrap Laravel pagination envelope {data:[...]} when present,
+          // otherwise pass the raw payload (array or object) straight to the
+          // service's parser, which is responsible for shaping it.
+          dynamic payload = data;
+          if (data is Map<String, dynamic> && data['data'] is List) {
+            payload = data['data'];
           }
+          result = fromJson(payload);
         }
         
         return ApiResponse.success(
