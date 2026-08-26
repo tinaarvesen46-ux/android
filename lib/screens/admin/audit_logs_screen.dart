@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/theme.dart';
 import '../../models/admin_models.dart';
+import '../../api/services/admin_service.dart';
 
 class AuditLogsScreen extends StatefulWidget {
   const AuditLogsScreen({super.key});
@@ -10,93 +11,24 @@ class AuditLogsScreen extends StatefulWidget {
 }
 
 class _AuditLogsScreenState extends State<AuditLogsScreen> {
-  final List<AuditLog> _logs = [
-    AuditLog(
-      id: 'log_001',
-      adminId: 'u001',
-      adminName: 'Alex Chen',
-      adminAvatar:
-          'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100',
-      action: AuditAction.userBanned,
-      targetId: 'u_bad',
-      targetName: 'bad_actor_99',
-      description: 'Banned user for repeated harassment reports',
-      createdAt: DateTime.now().subtract(const Duration(minutes: 20)),
-    ),
-    AuditLog(
-      id: 'log_002',
-      adminId: 'u004',
-      adminName: 'Emma Wilson',
-      adminAvatar:
-          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100',
-      action: AuditAction.contentRemoved,
-      targetId: 'story_xyz',
-      targetName: 'Spam Story',
-      description: 'Removed story containing prohibited content',
-      createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-    ),
-    AuditLog(
-      id: 'log_003',
-      adminId: 'u001',
-      adminName: 'Alex Chen',
-      adminAvatar:
-          'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100',
-      action: AuditAction.userRoleChanged,
-      targetId: 'u004',
-      targetName: 'Emma Wilson',
-      description: 'Changed role from Support to Moderator',
-      metadata: {'from': 'support', 'to': 'moderator'},
-      createdAt: DateTime.now().subtract(const Duration(hours: 3)),
-    ),
-    AuditLog(
-      id: 'log_004',
-      adminId: 'u001',
-      adminName: 'Alex Chen',
-      adminAvatar:
-          'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100',
-      action: AuditAction.campaignSent,
-      targetId: 'camp_001',
-      targetName: 'Summer Vibes Newsletter',
-      description: 'Email campaign sent to 89,330 users',
-      createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-    ),
-    AuditLog(
-      id: 'log_005',
-      adminId: 'u005',
-      adminName: 'James Brown',
-      adminAvatar:
-          'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100',
-      action: AuditAction.ticketResolved,
-      targetId: 'TKT-004',
-      targetName: 'TKT-004 Harassment Report',
-      description: 'Resolved support ticket for harassment complaint',
-      createdAt: DateTime.now().subtract(const Duration(hours: 8)),
-    ),
-    AuditLog(
-      id: 'log_006',
-      adminId: 'u001',
-      adminName: 'Alex Chen',
-      adminAvatar:
-          'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100',
-      action: AuditAction.settingChanged,
-      targetId: 'system',
-      targetName: 'System Settings',
-      description: 'Changed message retention period from 30 to 60 days',
-      createdAt: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-    AuditLog(
-      id: 'log_007',
-      adminId: 'u004',
-      adminName: 'Emma Wilson',
-      adminAvatar:
-          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100',
-      action: AuditAction.userWarned,
-      targetId: 'u_spammer',
-      targetName: 'spam_king_2024',
-      description: 'Issued formal warning for spam activity',
-      createdAt: DateTime.now().subtract(const Duration(days: 1, hours: 4)),
-    ),
-  ];
+  final AdminService _adminService = AdminService();
+  List<AuditLog> _logs = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final res = await _adminService.getAuditLogs();
+    if (!mounted) return;
+    setState(() {
+      _logs = res.data ?? [];
+      _loading = false;
+    });
+  }
 
   AuditAction? _selectedAction;
 
@@ -146,19 +78,22 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
         children: [
           _buildFilter(),
           Expanded(
-            child: _filtered.isEmpty
+            child: _loading
                 ? const Center(
-                    child: Text(
-                      'No logs found',
-                      style: TextStyle(color: SwiftSnapTheme.textMuted),
-                    ),
+                    child: CircularProgressIndicator(color: SwiftSnapTheme.primaryPurple),
                   )
-                : ListView.builder(
-                    padding:
-                        const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    itemCount: _filtered.length,
-                    itemBuilder: (_, i) => _buildLogCard(_filtered[i]),
-                  ),
+                : _filtered.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No audit logs yet',
+                          style: TextStyle(color: SwiftSnapTheme.textMuted),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        itemCount: _filtered.length,
+                        itemBuilder: (_, i) => _buildLogCard(_filtered[i]),
+                      ),
           ),
         ],
       ),
@@ -280,7 +215,11 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
                   children: [
                     CircleAvatar(
                       radius: 10,
-                      backgroundImage: NetworkImage(log.adminAvatar),
+                      backgroundColor: SwiftSnapTheme.surfaceLight,
+                      backgroundImage: log.adminAvatar.isNotEmpty ? NetworkImage(log.adminAvatar) : null,
+                      child: log.adminAvatar.isEmpty
+                          ? const Icon(Icons.shield_rounded, size: 11, color: SwiftSnapTheme.primaryPurple)
+                          : null,
                     ),
                     const SizedBox(width: 6),
                     Text(

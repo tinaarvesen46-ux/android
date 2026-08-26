@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../theme/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../models/admin_models.dart';
+import '../../api/services/admin_service.dart';
 import 'moderation_dashboard_screen.dart';
 
 class ModeratorDashboardScreen extends StatefulWidget {
@@ -14,57 +15,25 @@ class ModeratorDashboardScreen extends StatefulWidget {
 }
 
 class _ModeratorDashboardScreenState extends State<ModeratorDashboardScreen> {
-  final List<ModerationReport> _pendingReports = [
-    ModerationReport(
-      id: 'RPT-001',
-      reporterId: 'u002',
-      reporterName: 'Sarah Miller',
-      reporterAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-      reportedUserId: 'u007',
-      reportedUserName: 'bad_actor_99',
-      reportedUserAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-      contentType: ContentType.message,
-      contentPreview: '"You are ugly and should delete this app. Nobody likes you..."',
-      reason: ReportReason.harassment,
-      status: ReportStatus.pending,
-      createdAt: DateTime.now().subtract(const Duration(minutes: 15)),
-    ),
-    ModerationReport(
-      id: 'RPT-002',
-      reporterId: 'u003',
-      reporterName: 'Mike Johnson',
-      reporterAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
-      reportedUserId: 'u008',
-      reportedUserName: 'spam_king_2024',
-      reportedUserAvatar: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=100',
-      contentType: ContentType.story,
-      contentPreview: 'Story with repeated promotional links and fake giveaway claims.',
-      reason: ReportReason.spam,
-      status: ReportStatus.pending,
-      createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-    ),
-    ModerationReport(
-      id: 'RPT-003',
-      reporterId: 'u006',
-      reporterName: 'Lily Zhang',
-      reporterAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
-      reportedUserId: 'u009',
-      reportedUserName: 'violent_user',
-      reportedUserAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100',
-      contentType: ContentType.profile,
-      contentPreview: 'Profile bio contains threatening language and hate speech targeting a minority group.',
-      reason: ReportReason.violence,
-      status: ReportStatus.pending,
-      createdAt: DateTime.now().subtract(const Duration(hours: 3)),
-    ),
-  ];
+  final AdminService _adminService = AdminService();
+  List<ModerationReport> _pendingReports = [];
+  final List<Map<String, dynamic>> _recentActions = [];
 
-  final List<Map<String, dynamic>> _recentActions = [
-    {'action': 'Warning issued', 'user': '@toxic_poster', 'time': '2h ago', 'color': const Color(0xFFFBBF24)},
-    {'action': 'Content removed', 'user': '@spammer_bot', 'time': '4h ago', 'color': const Color(0xFFF97316)},
-    {'action': 'User suspended (3d)', 'user': '@harassment_user', 'time': '6h ago', 'color': const Color(0xFFEF4444)},
-    {'action': 'Report dismissed', 'user': '@false_report_01', 'time': '8h ago', 'color': const Color(0xFF10B981)},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final res = await _adminService.getReports();
+    if (!mounted) return;
+    setState(() {
+      _pendingReports = (res.data ?? [])
+          .where((r) => r.status == ReportStatus.pending)
+          .toList();
+    });
+  }
 
   int get _pendingCount => _pendingReports.where((r) => r.status == ReportStatus.pending).length;
   int get _actionsToday => _recentActions.length;

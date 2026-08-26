@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../theme/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../models/admin_models.dart';
+import '../../api/services/admin_service.dart';
 import 'support_tickets_screen.dart';
 import 'ticket_detail_screen.dart';
 
@@ -15,49 +16,20 @@ class SupportDashboardScreen extends StatefulWidget {
 }
 
 class _SupportDashboardScreenState extends State<SupportDashboardScreen> {
-  // Mock data - replace with real API calls
-  final List<SupportTicket> _myTickets = [
-    SupportTicket(
-      id: 'TKT-001',
-      userId: 'u003',
-      userDisplayName: 'Mike Johnson',
-      userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
-      subject: 'Cannot access account after password reset',
-      description: 'I tried to reset my password but never received the email.',
-      status: TicketStatus.open,
-      priority: TicketPriority.urgent,
-      category: TicketCategory.account,
-      createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-      updatedAt: DateTime.now().subtract(const Duration(hours: 2)),
-    ),
-    SupportTicket(
-      id: 'TKT-002',
-      userId: 'u005',
-      userDisplayName: 'James Brown',
-      userAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100',
-      subject: 'Story not showing to friends',
-      description: 'Posted a story 3 hours ago but friends cannot see it.',
-      status: TicketStatus.inProgress,
-      priority: TicketPriority.medium,
-      category: TicketCategory.technical,
-      assignedToName: 'You',
-      createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-      updatedAt: DateTime.now().subtract(const Duration(hours: 1)),
-    ),
-    SupportTicket(
-      id: 'TKT-003',
-      userId: 'u006',
-      userDisplayName: 'Lily Zhang',
-      userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
-      subject: 'Subscription not applying after payment',
-      description: 'Paid for SwiftSnap+ but premium features not unlocked.',
-      status: TicketStatus.open,
-      priority: TicketPriority.high,
-      category: TicketCategory.billing,
-      createdAt: DateTime.now().subtract(const Duration(hours: 8)),
-      updatedAt: DateTime.now().subtract(const Duration(hours: 8)),
-    ),
-  ];
+  final AdminService _adminService = AdminService();
+  List<SupportTicket> _myTickets = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final res = await _adminService.getTickets();
+    if (!mounted) return;
+    setState(() => _myTickets = res.data ?? []);
+  }
 
   int get _openCount => _myTickets.where((t) => t.status == TicketStatus.open).length;
   int get _inProgressCount => _myTickets.where((t) => t.status == TicketStatus.inProgress).length;

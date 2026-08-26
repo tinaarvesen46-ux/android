@@ -1,6 +1,7 @@
 // ============================================================
 // Admin Models — SwiftSnap
 // ============================================================
+import 'dart:convert';
 
 // ─── Support Ticket ──────────────────────────────────────────
 enum TicketStatus { open, inProgress, resolved, closed }
@@ -39,6 +40,49 @@ class SupportTicket {
     required this.updatedAt,
     this.replies = const [],
   });
+
+  factory SupportTicket.fromApi(Map<String, dynamic> j) {
+    final u = (j['user'] as Map?) ?? const {};
+    return SupportTicket(
+      id: '${j['id'] ?? ''}',
+      userId: '${j['user_id'] ?? u['id'] ?? ''}',
+      userDisplayName: '${u['display_name'] ?? u['username'] ?? 'User'}',
+      userAvatar: '${u['avatar_url'] ?? ''}',
+      subject: '${j['subject'] ?? j['title'] ?? ''}',
+      description: '${j['description'] ?? j['message'] ?? ''}',
+      status: _ticketStatus('${j['status'] ?? 'open'}'),
+      priority: _ticketPriority('${j['priority'] ?? 'medium'}'),
+      createdAt: DateTime.tryParse('${j['created_at'] ?? ''}')?.toLocal() ?? DateTime.now(),
+      updatedAt: DateTime.tryParse('${j['updated_at'] ?? ''}')?.toLocal() ?? DateTime.now(),
+    );
+  }
+
+  static TicketStatus _ticketStatus(String s) {
+    switch (s) {
+      case 'in_progress':
+      case 'inProgress':
+        return TicketStatus.inProgress;
+      case 'resolved':
+        return TicketStatus.resolved;
+      case 'closed':
+        return TicketStatus.closed;
+      default:
+        return TicketStatus.open;
+    }
+  }
+
+  static TicketPriority _ticketPriority(String s) {
+    switch (s) {
+      case 'low':
+        return TicketPriority.low;
+      case 'high':
+        return TicketPriority.high;
+      case 'urgent':
+        return TicketPriority.urgent;
+      default:
+        return TicketPriority.medium;
+    }
+  }
 
   SupportTicket copyWith({
     TicketStatus? status,
@@ -133,6 +177,25 @@ class ModerationReport {
     this.reviewedByName,
     required this.createdAt,
   });
+
+  factory ModerationReport.fromApi(Map<String, dynamic> j) {
+    final r = (j['reporter'] as Map?) ?? const {};
+    final t = (j['reported_user'] as Map?) ?? const {};
+    return ModerationReport(
+      id: '${j['id'] ?? ''}',
+      reporterId: '${j['reporter_id'] ?? r['id'] ?? ''}',
+      reporterName: '${r['display_name'] ?? r['username'] ?? 'User'}',
+      reporterAvatar: '${r['avatar_url'] ?? ''}',
+      reportedUserId: '${j['reported_user_id'] ?? t['id'] ?? ''}',
+      reportedUserName: '${t['display_name'] ?? t['username'] ?? 'User'}',
+      reportedUserAvatar: '${t['avatar_url'] ?? ''}',
+      contentType: ContentType.message,
+      contentPreview: '${j['content_preview'] ?? j['reason'] ?? ''}',
+      reason: ReportReason.other,
+      status: ReportStatus.pending,
+      createdAt: DateTime.tryParse('${j['created_at'] ?? ''}')?.toLocal() ?? DateTime.now(),
+    );
+  }
 }
 
 // ─── Audit Log ───────────────────────────────────────────────
@@ -171,6 +234,36 @@ class AuditLog {
     this.metadata = const {},
     required this.createdAt,
   });
+
+  factory AuditLog.fromApi(Map<String, dynamic> json) {
+    return AuditLog(
+      id: '${json['id'] ?? ''}',
+      adminId: '${json['admin_id'] ?? ''}',
+      adminName: 'Admin #${json['admin_id'] ?? '?'}',
+      adminAvatar: '',
+      action: _mapAction('${json['action'] ?? ''}'),
+      targetId: '${json['target_id'] ?? ''}',
+      targetName: '${json['target_type'] ?? 'target'} #${json['target_id'] ?? ''}',
+      description: '${json['description'] ?? json['action'] ?? ''}',
+      metadata: {
+        if (json['severity'] != null) 'severity': json['severity'],
+        if (json['ip_address'] != null) 'ip': json['ip_address'],
+      },
+      createdAt: DateTime.tryParse('${json['created_at'] ?? ''}')?.toLocal() ?? DateTime.now(),
+    );
+  }
+
+  static AuditAction _mapAction(String a) {
+    final s = a.toLowerCase();
+    if (s.contains('unban')) return AuditAction.userUnbanned;
+    if (s.contains('ban')) return AuditAction.userBanned;
+    if (s.contains('role')) return AuditAction.userRoleChanged;
+    if (s.contains('warn')) return AuditAction.userWarned;
+    if (s.contains('ticket')) return AuditAction.ticketResolved;
+    if (s.contains('campaign')) return AuditAction.campaignSent;
+    if (s.contains('remove') || s.contains('delete')) return AuditAction.contentRemoved;
+    return AuditAction.settingChanged;
+  }
 }
 
 // ─── Platform Analytics ──────────────────────────────────────
@@ -210,6 +303,28 @@ class PlatformAnalytics {
     required this.dailyMessages,
     required this.dailyNewUsers,
   });
+
+  factory PlatformAnalytics.fromApi(Map<String, dynamic> j) {
+    int n(String k) => j[k] is num ? (j[k] as num).toInt() : int.tryParse('${j[k] ?? 0}') ?? 0;
+    return PlatformAnalytics(
+      totalUsers: n('users_total'),
+      activeUsersToday: n('active_now'),
+      activeUsersWeek: n('signups_7d'),
+      activeUsersMonth: 0,
+      newUsersToday: n('users_today'),
+      newUsersWeek: n('signups_7d'),
+      totalMessages: n('messages_total'),
+      messagesToday: n('messages_today'),
+      totalStories: n('stories_active'),
+      storiesToday: 0,
+      openTickets: n('tickets_open'),
+      pendingReports: n('reports_pending'),
+      serverLoad: 0,
+      dailyActiveUsers: const [],
+      dailyMessages: const [],
+      dailyNewUsers: const [],
+    );
+  }
 }
 
 class DailyMetric {
@@ -254,6 +369,17 @@ class EmailTemplate {
     this.isPremium = false,
     required this.createdAt,
   });
+
+  factory EmailTemplate.fromApi(Map<String, dynamic> j) => EmailTemplate(
+        id: '${j['id'] ?? ''}',
+        name: '${j['name'] ?? ''}',
+        subject: '${j['subject'] ?? ''}',
+        previewText: '${j['preview_text'] ?? ''}',
+        htmlContent: '${j['html_content'] ?? j['content'] ?? ''}',
+        category: TemplateCategory.notification,
+        thumbnailColor: '#7C3AED',
+        createdAt: DateTime.tryParse('${j['created_at'] ?? ''}')?.toLocal() ?? DateTime.now(),
+      );
 }
 
 class EmailCampaign {
@@ -288,6 +414,17 @@ class EmailCampaign {
     this.clickCount,
     required this.createdAt,
   });
+
+  factory EmailCampaign.fromApi(Map<String, dynamic> j) => EmailCampaign(
+        id: '${j['id'] ?? ''}',
+        name: '${j['name'] ?? ''}',
+        templateId: '${j['template_id'] ?? ''}',
+        templateName: '${j['template_name'] ?? ''}',
+        subject: '${j['subject'] ?? ''}',
+        targetAudience: const [],
+        recipientCount: j['recipient_count'] is num ? (j['recipient_count'] as num).toInt() : 0,
+        createdAt: DateTime.tryParse('${j['created_at'] ?? ''}')?.toLocal() ?? DateTime.now(),
+      );
 
   double get openRate =>
       sentCount != null && sentCount! > 0
@@ -327,6 +464,26 @@ class SystemSettings {
     this.appVersion = '1.0.0',
     this.minRequiredVersion = '1.0.0',
   });
+
+  factory SystemSettings.fromApi(List<Map<String, dynamic>> rows) {
+    Map<String, dynamic> cfg = {};
+    for (final r in rows) {
+      if ('${r['key']}' == 'main_config') {
+        final v = r['value'];
+        if (v is String) {
+          try {
+            cfg = jsonDecode(v) as Map<String, dynamic>;
+          } catch (_) {}
+        } else if (v is Map) {
+          cfg = Map<String, dynamic>.from(v);
+        }
+      }
+    }
+    return SystemSettings(
+      maintenanceMode: cfg['maintenance_mode'] == true,
+      supportEmail: '${cfg['support_email'] ?? 'support@swiftsnap.com'}',
+    );
+  }
 
   SystemSettings copyWith({
     bool? maintenanceMode,

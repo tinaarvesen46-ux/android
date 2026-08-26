@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../theme/theme.dart';
 import '../../models/admin_models.dart';
+import '../../api/services/admin_service.dart';
 
 class ModerationDashboardScreen extends StatefulWidget {
   const ModerationDashboardScreen({super.key});
@@ -14,76 +15,24 @@ class ModerationDashboardScreen extends StatefulWidget {
 class _ModerationDashboardScreenState
     extends State<ModerationDashboardScreen> {
   ReportStatus? _selectedStatus;
+  final AdminService _adminService = AdminService();
+  List<ModerationReport> _reports = [];
+  bool _loading = true;
 
-  final List<ModerationReport> _reports = [
-    ModerationReport(
-      id: 'RPT-001',
-      reporterId: 'u002',
-      reporterName: 'Sarah Miller',
-      reporterAvatar:
-          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-      reportedUserId: 'u007',
-      reportedUserName: 'bad_actor_99',
-      reportedUserAvatar:
-          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-      contentType: ContentType.message,
-      contentPreview:
-          '"You are ugly and should delete this app. Nobody likes you..."',
-      reason: ReportReason.harassment,
-      status: ReportStatus.pending,
-      createdAt: DateTime.now().subtract(const Duration(minutes: 15)),
-    ),
-    ModerationReport(
-      id: 'RPT-002',
-      reporterId: 'u003',
-      reporterName: 'Mike Johnson',
-      reporterAvatar:
-          'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
-      reportedUserId: 'u008',
-      reportedUserName: 'spam_king_2024',
-      reportedUserAvatar:
-          'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=100',
-      contentType: ContentType.story,
-      contentPreview: 'Story with repeated promotional links and fake giveaway claims.',
-      reason: ReportReason.spam,
-      status: ReportStatus.pending,
-      createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-    ),
-    ModerationReport(
-      id: 'RPT-003',
-      reporterId: 'u006',
-      reporterName: 'Lily Zhang',
-      reporterAvatar:
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
-      reportedUserId: 'u009',
-      reportedUserName: 'violent_user',
-      reportedUserAvatar:
-          'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100',
-      contentType: ContentType.profile,
-      contentPreview: 'Profile bio contains threatening language and hate speech.',
-      reason: ReportReason.violence,
-      status: ReportStatus.reviewed,
-      reviewedByName: 'Emma Wilson',
-      createdAt: DateTime.now().subtract(const Duration(hours: 4)),
-    ),
-    ModerationReport(
-      id: 'RPT-004',
-      reporterId: 'u004',
-      reporterName: 'Emma Wilson',
-      reporterAvatar:
-          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100',
-      reportedUserId: 'u010',
-      reportedUserName: 'fake_news_spreader',
-      reportedUserAvatar:
-          'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=100',
-      contentType: ContentType.story,
-      contentPreview: 'Story spreading false health information about vaccines.',
-      reason: ReportReason.misinformation,
-      status: ReportStatus.actioned,
-      reviewedByName: 'Alex Chen',
-      createdAt: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final res = await _adminService.getReports();
+    if (!mounted) return;
+    setState(() {
+      _reports = res.data ?? [];
+      _loading = false;
+    });
+  }
 
   List<ModerationReport> get _filtered => _selectedStatus == null
       ? _reports
@@ -118,19 +67,20 @@ class _ModerationDashboardScreenState
           _buildSummaryRow(pending, reviewed),
           _buildStatusFilter(),
           Expanded(
-            child: _filtered.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No reports in this category',
-                      style: TextStyle(color: SwiftSnapTheme.textMuted),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    itemCount: _filtered.length,
-                    itemBuilder: (ctx, i) =>
-                        _buildReportCard(_filtered[i]),
-                  ),
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(color: SwiftSnapTheme.primaryPurple))
+                : _filtered.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No reports in this category',
+                          style: TextStyle(color: SwiftSnapTheme.textMuted),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        itemCount: _filtered.length,
+                        itemBuilder: (ctx, i) => _buildReportCard(_filtered[i]),
+                      ),
           ),
         ],
       ),
@@ -400,7 +350,12 @@ class _ModerationDashboardScreenState
       children: [
         CircleAvatar(
           radius: 16,
-          backgroundImage: NetworkImage(avatarUrl),
+          backgroundColor: SwiftSnapTheme.surfaceLight,
+          backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+          child: avatarUrl.isEmpty
+              ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: const TextStyle(color: SwiftSnapTheme.textPrimary, fontSize: 12))
+              : null,
         ),
         const SizedBox(width: 8),
         Column(

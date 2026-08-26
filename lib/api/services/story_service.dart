@@ -33,10 +33,16 @@ class StoryService {
     );
   }
   
-  /// Create new story
+  /// Create new story.
+  ///
+  /// NOTE: the backend `StoryController@store` currently accepts only
+  /// caption/location/visibility/expires_in_hours and does NOT attach uploaded
+  /// media to the story (no story_media link). We send the correct fields plus
+  /// media_id/media_url so it works once the backend attaches media.
   Future<ApiResponse<Map<String, dynamic>>> createStory({
     required String mediaUrl,
     String type = 'image',
+    String? mediaId,
     String? caption,
     String audience = 'friends',
     int duration = 24,
@@ -44,11 +50,13 @@ class StoryService {
     return await _client.post(
       ApiConfig.createStory,
       data: {
-        'media_url': mediaUrl,
-        'type': type,
         'caption': caption,
-        'audience': audience,
-        'duration_hours': duration,
+        'visibility': audience == 'friends' ? 'friends' : audience,
+        'expires_in_hours': duration,
+        // extra fields for media attachment (ignored until backend supports it)
+        'media_url': mediaUrl,
+        'media_id': mediaId,
+        'type': type,
       },
       fromJson: (data) => data as Map<String, dynamic>,
     );
@@ -63,10 +71,10 @@ class StoryService {
     return await _client.uploadFile(
       ApiConfig.uploadMedia,
       filePath,
-      fieldName: 'media',
+      fieldName: 'file',
       additionalData: {
+        'purpose': 'story',
         'type': type,
-        'for': 'story',
       },
       fromJson: (data) => data as Map<String, dynamic>,
       onSendProgress: onProgress,

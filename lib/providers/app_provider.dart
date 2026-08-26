@@ -6,6 +6,7 @@ import '../models/friend_request_model.dart';
 import '../api/services/chat_service.dart';
 import '../api/services/friend_service.dart';
 import '../api/services/story_service.dart';
+import '../api/services/notification_service.dart';
 
 class AppProvider extends ChangeNotifier {
   int _currentIndex = 0;
@@ -18,6 +19,11 @@ class AppProvider extends ChangeNotifier {
   List<UserModel> _friends = [];
   List<FriendRequestModel> _friendRequests = [];
   final Map<String, List<MessageModel>> _chatMessages = {};
+  List<Map<String, dynamic>> _notifications = [];
+
+  List<Map<String, dynamic>> get notifications => _notifications;
+  int get unreadNotificationCount =>
+      _notifications.where((n) => n['is_read'] != true && n['read_at'] == null).length;
 
   int get currentIndex => _currentIndex;
   bool get isOnline => _isOnline;
@@ -83,6 +89,7 @@ class AppProvider extends ChangeNotifier {
       _loadFriendRequests(),
       _loadChats(),
       _loadStories(),
+      _loadNotifications(),
     ]);
     _isLoadingData = false;
     notifyListeners();
@@ -138,6 +145,32 @@ class AppProvider extends ChangeNotifier {
             .toList();
       }
     } catch (_) {}
+  }
+
+  Future<void> _loadNotifications() async {
+    try {
+      final res = await NotificationService().getNotifications();
+      if (res.isSuccess && res.data != null) {
+        _notifications = res.data!;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> markNotificationRead(String id) async {
+    final i = _notifications.indexWhere((n) => '${n['id']}' == id);
+    if (i != -1) {
+      _notifications[i] = {..._notifications[i], 'is_read': true, 'read_at': DateTime.now().toIso8601String()};
+      notifyListeners();
+    }
+    await NotificationService().markRead(id);
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    _notifications = _notifications
+        .map((n) => {...n, 'is_read': true, 'read_at': DateTime.now().toIso8601String()})
+        .toList();
+    notifyListeners();
+    await NotificationService().markAllRead();
   }
 
   // ─── Tolerant JSON → model parsers (Laravel snake_case conventions) ───
@@ -218,7 +251,13 @@ class AppProvider extends ChangeNotifier {
   }
 
   ChatModel? _chatFromJson(Map<String, dynamic> json) {
-    final participant = _userFrom(json['participant'] ?? json['user'] ?? json['other_user']);
+    final parts = json['other_participants'];
+    final participant = _userFrom(
+      json['participant'] ??
+          json['user'] ??
+          json['other_user'] ??
+          ((parts is List && parts.isNotEmpty) ? parts.first : null),
+    );
     if (participant == null) return null;
     final lastMsgJson = json['last_message'] ?? json['lastMessage'];
     return ChatModel(
@@ -259,6 +298,17 @@ class AppProvider extends ChangeNotifier {
   // ─────────────────────────────────────────────────────────────────────────
   List<MessageModel> getChatMessages(String chatId) {
     return _chatMessages[chatId] ?? [];
+  }
+
+  /// Loads real message history for a conversation from the backend.
+  Future<void> loadChatMessages(String chatId) async {
+    try {
+      final res = await ChatService().getChatMessages(chatId: chatId);
+      if (res.isSuccess && res.data != null) {
+        _chatMessages[chatId] = res.data!.map((m) => _messageFrom(m, fallbackSender: '')).toList();
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   Future<void> sendMessage(String chatId, String content) async {

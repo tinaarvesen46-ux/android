@@ -74,9 +74,9 @@ class _EmailTemplateEditorScreenState
       case '{{support_email}}':
         return 'support@swiftsnap.com';
       case '{{sender_name}}':
-        return 'Sarah Miller';
+        return 'SwiftSnap Team';
       case '{{sender_avatar}}':
-        return 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100';
+        return 'https://swiftsnap.com/logo.png';
       case '{{discount_code}}':
         return 'SUMMER30';
       case '{{discount_percent}}':

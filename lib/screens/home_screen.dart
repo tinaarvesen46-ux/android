@@ -5,6 +5,7 @@ import 'dart:ui';
 import '../theme/theme.dart';
 import '../providers/app_provider.dart';
 import '../models/user_model.dart';
+import '../api/services/story_service.dart';
 import 'chats_screen.dart';
 import 'stories_screen.dart';
 import 'camera_first_screen.dart';
@@ -131,9 +132,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     HapticFeedback.lightImpact();
   }
   
-  void _openCamera() {
+  void _openCamera() async {
     HapticFeedback.mediumImpact();
-    Navigator.of(context).push(
+    final result = await Navigator.of(context).push<CameraResult>(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => const CameraFirstScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -150,6 +151,44 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         transitionDuration: const Duration(milliseconds: 300),
       ),
     );
+    if (result != null && mounted) {
+      await _uploadCapturedStory(result);
+    }
+  }
+
+  /// Camera capture → media/upload → stories (create) → refresh provider.
+  Future<void> _uploadCapturedStory(CameraResult result) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(
+      content: Text('Uploading to your story…'),
+      duration: Duration(seconds: 2),
+    ));
+    try {
+      final storyService = StoryService();
+      final type = result.isVideo ? 'video' : 'image';
+      final upload = await storyService.uploadStoryMedia(result.file.path, type: type);
+      if (!upload.success || upload.data == null) {
+        messenger.showSnackBar(SnackBar(content: Text('Upload failed: ${upload.message ?? 'unknown error'}')));
+        return;
+      }
+      final mediaUrl = (upload.data!['url'] ?? upload.data!['media_url'] ?? upload.data!['path'] ?? '').toString();
+      final mediaId = (upload.data!['id'] ?? upload.data!['media_id'] ?? '').toString();
+      if (mediaUrl.isEmpty) {
+        messenger.showSnackBar(const SnackBar(content: Text('Upload succeeded but no media URL was returned.')));
+        return;
+      }
+      final created = await storyService.createStory(mediaUrl: mediaUrl, type: type, mediaId: mediaId.isEmpty ? null : mediaId);
+      if (!created.success) {
+        messenger.showSnackBar(SnackBar(content: Text('Could not post story: ${created.message ?? 'error'}')));
+        return;
+      }
+      if (mounted) {
+        await Provider.of<AppProvider>(context, listen: false).refresh();
+        messenger.showSnackBar(const SnackBar(content: Text('Posted to your story!')));
+      }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Upload error: $e')));
+    }
   }
   
   @override

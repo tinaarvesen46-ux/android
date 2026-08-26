@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../theme/theme.dart';
+import '../api/services/settings_service.dart';
 import 'change_password_screen.dart';
 import 'login_history_screen.dart';
 import 'suspicious_activity_screen.dart';
@@ -735,52 +736,96 @@ class _SecurityScreenState extends State<SecurityScreen> {
   }
 
   void _showActiveSessions() {
+    final settingsService = SettingsService();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: SwiftSnapTheme.backgroundCard,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(2),
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        minChildSize: 0.4,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: SwiftSnapTheme.backgroundCard,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            const Text(
-              'Active Sessions',
-              style: TextStyle(
-                color: SwiftSnapTheme.textPrimary,
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
+              const Text(
+                'Active Sessions',
+                style: TextStyle(
+                  color: SwiftSnapTheme.textPrimary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            _buildSessionItem('iPhone 14 Pro', 'Current device', true),
-            const SizedBox(height: 12),
-            _buildSessionItem('MacBook Pro', 'Last active 2h ago', false),
-            const SizedBox(height: 12),
-            _buildSessionItem('iPad Air', 'Last active 1d ago', false),
-            SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
-          ],
+              const SizedBox(height: 20),
+              Expanded(
+                child: FutureBuilder(
+                  future: settingsService.getActiveSessions(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: SwiftSnapTheme.primaryPurple),
+                      );
+                    }
+                    final res = snapshot.data;
+                    final sessions = (res != null && res.isSuccess) ? (res.data ?? []) : [];
+                    if (sessions.isEmpty) {
+                      return const Center(
+                        child: Text('No active sessions',
+                            style: TextStyle(color: SwiftSnapTheme.textSecondary)),
+                      );
+                    }
+                    return ListView.separated(
+                      controller: scrollController,
+                      itemCount: sessions.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, i) {
+                        final s = sessions[i] as Map<String, dynamic>;
+                        final isCurrent = s['current'] == true;
+                        return _buildSessionItem(
+                          '${s['name'] ?? 'Session'}',
+                          'Last active ${s['last_used_at'] ?? s['created_at'] ?? ''}',
+                          isCurrent,
+                          () async {
+                            final r = await settingsService.revokeSession('${s['id']}');
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(r.isSuccess ? 'Session revoked' : r.errorMessage)),
+                              );
+                            }
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSessionItem(String device, String status, bool isCurrent) {
+  Widget _buildSessionItem(String device, String status, bool isCurrent, [VoidCallback? onRevoke]) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -790,7 +835,8 @@ class _SecurityScreenState extends State<SecurityScreen> {
       ),
       child: Row(
         children: [
-          Icon(Icons.devices_rounded, color: SwiftSnapTheme.textSecondary),
+          Icon(isCurrent ? Icons.verified_user_rounded : Icons.devices_rounded,
+              color: isCurrent ? SwiftSnapTheme.accentGreen : SwiftSnapTheme.textSecondary),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -803,21 +849,25 @@ class _SecurityScreenState extends State<SecurityScreen> {
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  status,
-                  style: TextStyle(
+                  isCurrent ? 'Current device' : status,
+                  style: const TextStyle(
                     color: SwiftSnapTheme.textSecondary,
                     fontSize: 13,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
           if (!isCurrent)
             TextButton(
-              onPressed: () {},
-              child: const Text('Remove', style: TextStyle(color: SwiftSnapTheme.busy)),
+              onPressed: onRevoke,
+              child: const Text('Revoke', style: TextStyle(color: SwiftSnapTheme.busy)),
             ),
         ],
       ),

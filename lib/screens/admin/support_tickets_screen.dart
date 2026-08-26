@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../theme/theme.dart';
 import '../../models/admin_models.dart';
+import '../../api/services/admin_service.dart';
 import 'ticket_detail_screen.dart';
 
 class SupportTicketsScreen extends StatefulWidget {
@@ -15,84 +16,9 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   TicketStatus? _selectedStatus;
-
-  final List<SupportTicket> _tickets = [
-    SupportTicket(
-      id: 'TKT-001',
-      userId: 'u003',
-      userDisplayName: 'Mike Johnson',
-      userAvatar:
-          'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
-      subject: 'Cannot access my account after password reset',
-      description:
-          'I tried to reset my password but never received the email. I have checked spam folder multiple times.',
-      status: TicketStatus.open,
-      priority: TicketPriority.urgent,
-      category: TicketCategory.account,
-      createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-      updatedAt: DateTime.now().subtract(const Duration(hours: 2)),
-    ),
-    SupportTicket(
-      id: 'TKT-002',
-      userId: 'u005',
-      userDisplayName: 'James Brown',
-      userAvatar:
-          'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100',
-      subject: 'Story not showing to my friends',
-      description:
-          'I posted a story 3 hours ago but my friends say they cannot see it in their feed.',
-      status: TicketStatus.inProgress,
-      priority: TicketPriority.medium,
-      category: TicketCategory.technical,
-      assignedToName: 'Alex Chen',
-      createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-      updatedAt: DateTime.now().subtract(const Duration(hours: 1)),
-      replies: [
-        TicketReply(
-          id: 'r001',
-          authorId: 'u001',
-          authorName: 'Alex Chen',
-          authorAvatar:
-              'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100',
-          isStaff: true,
-          content:
-              'Hi James, we are investigating this issue. Our engineering team has been notified.',
-          createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-        ),
-      ],
-    ),
-    SupportTicket(
-      id: 'TKT-003',
-      userId: 'u006',
-      userDisplayName: 'Lily Zhang',
-      userAvatar:
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
-      subject: 'Subscription not applying after payment',
-      description:
-          'I paid for SwiftSnap+ but the premium features are not unlocked.',
-      status: TicketStatus.open,
-      priority: TicketPriority.high,
-      category: TicketCategory.billing,
-      createdAt: DateTime.now().subtract(const Duration(hours: 8)),
-      updatedAt: DateTime.now().subtract(const Duration(hours: 8)),
-    ),
-    SupportTicket(
-      id: 'TKT-004',
-      userId: 'u002',
-      userDisplayName: 'Sarah Miller',
-      userAvatar:
-          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-      subject: 'User harassing me in messages',
-      description:
-          'A user keeps sending me inappropriate messages even after I blocked them.',
-      status: TicketStatus.resolved,
-      priority: TicketPriority.high,
-      category: TicketCategory.abuse,
-      assignedToName: 'Emma Wilson',
-      createdAt: DateTime.now().subtract(const Duration(days: 1)),
-      updatedAt: DateTime.now().subtract(const Duration(hours: 3)),
-    ),
-  ];
+  final AdminService _adminService = AdminService();
+  List<SupportTicket> _tickets = [];
+  bool _loading = true;
 
   @override
   void initState() {
@@ -110,6 +36,16 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen>
           };
         });
       }
+    });
+    _load();
+  }
+
+  Future<void> _load() async {
+    final res = await _adminService.getTickets();
+    if (!mounted) return;
+    setState(() {
+      _tickets = res.data ?? [];
+      _loading = false;
     });
   }
 
@@ -167,6 +103,9 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen>
   }
 
   Widget _buildTicketList() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: SwiftSnapTheme.primaryPurple));
+    }
     final items = _filtered;
     if (items.isEmpty) {
       return const Center(
@@ -221,7 +160,12 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen>
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundImage: NetworkImage(ticket.userAvatar),
+                  backgroundColor: SwiftSnapTheme.surfaceLight,
+                  backgroundImage: ticket.userAvatar.isNotEmpty ? NetworkImage(ticket.userAvatar) : null,
+                  child: ticket.userAvatar.isEmpty
+                      ? Text(ticket.userDisplayName.isNotEmpty ? ticket.userDisplayName[0].toUpperCase() : '?',
+                          style: const TextStyle(color: SwiftSnapTheme.textPrimary))
+                      : null,
                 ),
                 const SizedBox(width: 10),
                 Expanded(

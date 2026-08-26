@@ -32,6 +32,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
       vsync: this,
       duration: const Duration(milliseconds: 200),
     );
+    // Load real message history + mark conversation read.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<AppProvider>();
+      provider.loadChatMessages(widget.chat.id);
+      provider.markChatAsRead(widget.chat.id);
+    });
   }
   
   @override

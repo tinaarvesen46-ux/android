@@ -39,12 +39,18 @@ class FriendService {
         'page': page,
         'per_page': perPage,
       },
-      fromJson: (data) => data is List 
-          ? data.cast<Map<String, dynamic>>()
-          : [data as Map<String, dynamic>],
+      fromJson: (data) {
+        // Backend returns { incoming: [...], outgoing: [...] }.
+        // We surface INCOMING (received) requests here.
+        if (data is Map && data['incoming'] is List) {
+          return (data['incoming'] as List).cast<Map<String, dynamic>>();
+        }
+        if (data is List) return data.cast<Map<String, dynamic>>();
+        return <Map<String, dynamic>>[];
+      },
     );
   }
-  
+
   /// Send friend request
   Future<ApiResponse<Map<String, dynamic>>> sendFriendRequest(String userId) async {
     return await _client.post(

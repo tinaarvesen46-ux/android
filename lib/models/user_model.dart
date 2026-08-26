@@ -128,33 +128,54 @@ class UserModel {
   
   // JSON serialization
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    // The backend nests profile fields under `profile` (users/me, friends,
+    // admin/users) but sends a flat mini-object elsewhere (friend-requests,
+    // chat previews). Read profile first, fall back to top-level.
+    final p = (json['profile'] as Map?) ?? const {};
+    String? pick(String key) =>
+        (p[key] ?? json[key])?.toString();
+
     return UserModel(
-      id: json['id'] as String,
-      username: json['username'] as String,
-      displayName: json['display_name'] as String,
-      email: json['email'] as String?,
-      avatarUrl: json['avatar_url'] as String? ?? '',
-      coverUrl: json['cover_url'] as String?,
-      bio: json['bio'] as String?,
-      pronouns: json['pronouns'] as String?,
-      location: json['location'] as String?,
-      isVerified: json['is_verified'] as bool? ?? false,
-      isOnline: json['is_online'] as bool? ?? false,
-      lastSeen: json['last_seen'] != null 
-          ? DateTime.parse(json['last_seen'] as String)
-          : null,
+      id: (json['id'] ?? json['uuid'] ?? '').toString(),
+      username: (json['username'] ?? '').toString(),
+      displayName: (p['display_name'] ??
+              json['display_name'] ??
+              json['username'] ??
+              '')
+          .toString(),
+      email: json['email']?.toString(),
+      avatarUrl: pick('avatar_url') ?? '',
+      coverUrl: pick('cover_url'),
+      bio: pick('bio'),
+      pronouns: pick('pronouns'),
+      location: pick('location'),
+      isVerified: json['email_verified_at'] != null ||
+          (json['is_verified'] == true || json['is_verified'] == 1),
+      isOnline: _toBool(json['is_online']),
+      lastSeen: _toDate(json['last_seen_at'] ?? json['last_seen']),
       accountStatus: _accountStatusFromString(json['account_status'] as String?),
       privacyLevel: _privacyLevelFromString(json['privacy_level'] as String?),
-      friendCount: json['friend_count'] as int? ?? 0,
-      streakDays: json['streak_days'] as int? ?? 0,
-      snapScore: json['snap_score'] as int? ?? json['score'] as int? ?? 0,
-      birthday: json['birthday'] as String? ?? json['date_of_birth'] as String?,
-      phone: json['phone'] as String? ?? json['mobile'] as String? ?? json['phone_number'] as String?,
-      isFavorite: json['is_favorite'] as bool? ?? false,
-      isCloseFriend: json['is_close_friend'] as bool? ?? false,
+      friendCount: _toInt(p['friend_count'] ?? json['friend_count']),
+      streakDays: _toInt(json['streak_days']),
+      snapScore: _toInt(p['snap_score'] ?? json['snap_score'] ?? json['score']),
+      birthday: (p['birthday'] ?? json['birthday'] ?? json['date_of_birth'])
+          ?.toString(),
+      phone: (json['phone'] ?? json['mobile'] ?? json['phone_number'])
+          ?.toString(),
+      isFavorite: _toBool(json['is_favorite']),
+      isCloseFriend: _toBool(json['is_close_friend']),
       staffRole: _staffRoleFromString(json['staff_role'] as String?),
     );
   }
+
+  static int _toInt(dynamic v) =>
+      v is int ? v : (v is num ? v.toInt() : int.tryParse('${v ?? ''}') ?? 0);
+
+  static bool _toBool(dynamic v) =>
+      v == true || v == 1 || v == '1' || v == 'true';
+
+  static DateTime? _toDate(dynamic v) =>
+      v is String && v.isNotEmpty ? DateTime.tryParse(v)?.toLocal() : null;
   
   Map<String, dynamic> toJson() {
     return {

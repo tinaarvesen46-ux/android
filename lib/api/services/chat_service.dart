@@ -118,8 +118,8 @@ class ChatService {
     return await _client.uploadFile(
       ApiConfig.uploadMedia,
       filePath,
-      fieldName: 'media',
-      additionalData: {'type': type},
+      fieldName: 'file',
+      additionalData: {'purpose': 'chat', 'type': type},
       fromJson: (data) => data as Map<String, dynamic>,
       onSendProgress: onProgress,
     );

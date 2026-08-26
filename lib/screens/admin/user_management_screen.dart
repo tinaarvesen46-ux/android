@@ -27,7 +27,6 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _loadUsers();
-    _buildMockUsers();
   }
 
   @override
@@ -37,90 +36,16 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     super.dispose();
   }
 
-  void _buildMockUsers() {
-    _users = [
-      UserModel(
-        id: 'u001',
-        username: 'alex_vibe',
-        displayName: 'Alex Chen',
-        email: 'alex@swiftsnap.com',
-        avatarUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100',
-        isVerified: true,
-        isOnline: true,
-        accountStatus: AccountStatus.creator,
-        staffRole: StaffRole.administrator,
-        friendCount: 1240,
-        streakDays: 87,
-      ),
-      UserModel(
-        id: 'u002',
-        username: 'sarah_creates',
-        displayName: 'Sarah Miller',
-        email: 'sarah@gmail.com',
-        avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-        isVerified: true,
-        isOnline: true,
-        accountStatus: AccountStatus.creator,
-        friendCount: 892,
-        streakDays: 34,
-      ),
-      UserModel(
-        id: 'u003',
-        username: 'mike_photo',
-        displayName: 'Mike Johnson',
-        email: 'mike@gmail.com',
-        avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
-        isVerified: false,
-        isOnline: false,
-        accountStatus: AccountStatus.normal,
-        friendCount: 45,
-        streakDays: 7,
-      ),
-      UserModel(
-        id: 'u004',
-        username: 'emma_vibes',
-        displayName: 'Emma Wilson',
-        email: 'emma@gmail.com',
-        avatarUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100',
-        isVerified: true,
-        isOnline: false,
-        accountStatus: AccountStatus.verified,
-        staffRole: StaffRole.moderator,
-        friendCount: 578,
-        streakDays: 22,
-      ),
-      UserModel(
-        id: 'u005',
-        username: 'james_art',
-        displayName: 'James Brown',
-        email: 'james@gmail.com',
-        avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100',
-        isVerified: false,
-        isOnline: false,
-        accountStatus: AccountStatus.normal,
-        staffRole: StaffRole.support,
-        friendCount: 123,
-        streakDays: 3,
-      ),
-      UserModel(
-        id: 'u006',
-        username: 'lily_music',
-        displayName: 'Lily Zhang',
-        email: 'lily@gmail.com',
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
-        isVerified: true,
-        isOnline: true,
-        accountStatus: AccountStatus.creator,
-        friendCount: 2341,
-        streakDays: 120,
-      ),
-    ];
-  }
-
   Future<void> _loadUsers() async {
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) setState(() => _loading = false);
+    final res = await _adminService.getUsers(
+      search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+    );
+    if (!mounted) return;
+    setState(() {
+      _users = res.data ?? [];
+      _loading = false;
+    });
   }
 
   List<UserModel> get _filteredUsers {
@@ -329,8 +254,11 @@ class _UserManagementScreenState extends State<UserManagementScreen>
               children: [
                 CircleAvatar(
                   radius: 26,
-                  backgroundImage: NetworkImage(user.avatarUrl),
-                  backgroundColor: SwiftSnapTheme.surfaceLight,
+                  backgroundImage: user.avatarUrl.isNotEmpty ? NetworkImage(user.avatarUrl) : null,
+                  child: user.avatarUrl.isEmpty
+                      ? Text(user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?',
+                          style: const TextStyle(color: SwiftSnapTheme.textPrimary, fontWeight: FontWeight.w700))
+                      : null,
                 ),
                 if (user.isOnline)
                   Positioned(
@@ -585,7 +513,11 @@ class _UserActionsSheet extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundImage: NetworkImage(user.avatarUrl),
+                backgroundImage: user.avatarUrl.isNotEmpty ? NetworkImage(user.avatarUrl) : null,
+                child: user.avatarUrl.isEmpty
+                    ? Text(user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?',
+                        style: const TextStyle(color: SwiftSnapTheme.textPrimary, fontWeight: FontWeight.w700))
+                    : null,
               ),
               const SizedBox(width: 12),
               Column(
