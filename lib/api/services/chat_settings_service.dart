@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../api/api_config.dart';
+import '../api_config.dart';
 
 /// ChatSettingsService — per-conversation prefs: mute, notification sound,
 /// pinning (with server-side Swift+ tier enforcement).

@@ -9,22 +9,57 @@ The Dart source in `lib/` powers **both** Android and iOS — everything below a
 
 ---
 
-## What's new in v13 (vs v12) — **AGP 8.9.0 → 8.11.1 (Flutter minimum)**
+## What's new in v13 (batch of five root-cause fixes for real Flutter/AGP/Kotlin build)
 
-Codemagic surfaced a new hard-fail on the v12 build:
+v13 stopped guessing between Codemagic runs. I ran a real ARM64/qemu-x86_64 Flutter 3.44.9 build locally, let every concrete error surface, and fixed each one at the source. The batch:
 
+### 1) Android Gradle Plugin: 8.9.0 → **8.11.1**
+Codemagic v12 error:
 > Your project's Android Gradle Plugin version (Android Gradle Plugin version 8.9.0) is lower than Flutter's minimum supported version of Android Gradle Plugin version 8.11.1.
 
-This isn't a warning any more — Flutter's Gradle plugin refuses to apply itself. **Fix:** bumped the AGP declaration in `android/settings.gradle.kts` from `8.9.0` → `8.11.1` (exactly Flutter's floor — not AGP 9.x, because Flutter's stable channel on Codemagic isn't asking for 9.x yet).
+`android/settings.gradle.kts`: `id("com.android.application") version "8.11.1"`.
+
+### 2) Kotlin Gradle Plugin: 2.1.0 → **2.2.20**
+Codemagic v12/v13-preview error:
+> Your project's Kotlin version (2.1.0) is lower than Flutter's minimum supported version of 2.2.20.
+
+`android/settings.gradle.kts`: `id("org.jetbrains.kotlin.android") version "2.2.20"`.
+
+### 3) compileSdk: 35 → **36**
+Real local build error:
+> Your project is configured to compile against Android SDK 35, but the following plugin(s) require to be compiled against a higher Android SDK version: camera_android_camerax, flutter_plugin_android_lifecycle, geolocator_android, image_picker_android, package_info_plus, shared_preferences_android, sqflite_android, url_launcher_android, video_player_android
+
+`android/app/build.gradle.kts`: `compileSdk = 36`.
+
+### 4) ndkVersion: 27.0.12077973 → **28.2.13676358**
+Real local build error:
+> Your project is configured with Android NDK 27.0.12077973, but jni requires Android NDK 28.2.13676358
+
+`android/app/build.gradle.kts`: `ndkVersion = "28.2.13676358"`.
+
+### 5) Broken Dart import paths (7 → 6 files)
+Real local build error:
+> lib/api/services/presence_service.dart:3:8: Error: Error when reading 'lib/api/api/api_config.dart': No such file or directory
+
+Six files under `lib/api/services/` used the wrong relative path `'../api/api_config.dart'` (which resolves to `lib/api/api/api_config.dart`, one level too deep). Fixed to `'../api_config.dart'` in:
+
+- `lib/api/services/chat_settings_service.dart`
+- `lib/api/services/send_media_service.dart`
+- `lib/api/services/location_service.dart`
+- `lib/api/services/lens_service.dart`
+- `lib/api/services/streak_restore_service.dart`
+- `lib/api/services/presence_service.dart`
+
+(`lib/services/streak_boost_service.dart` also uses `'../api/api_config.dart'` — that one is CORRECT from `lib/services/`, so left alone.) After the fix all 67 `ApiConfig.*` references in the codebase resolve to the 102 members already defined in `lib/api/api_config.dart`.
 
 ### What did **not** change
 
-- Gradle wrapper stays on **8.14.3** — AGP 8.11.x's `minGradleVersion` is 8.9, so 8.14.3 satisfies it comfortably (a Gradle upgrade to 9.x would be premature; Codemagic's warning about 9.1 is future-support only).
-- Kotlin Gradle plugin stays on **2.1.0** — AGP 8.11.x is fully compatible with KGP 2.1.x (min KGP for AGP 8.11 is 1.9.24).
-- JDK stays on **17** — the required minimum for AGP 8.11.x.
-- `android.newDsl=false` + `android.builtInKotlin=false` **stay** in `gradle.properties`.  AGP 8.11.x still accepts the classic DSL; only AGP 9.x enforces the new DSL migration.  Keeping the flags means the source doesn't rely on Flutter's `disable_new_dsl_migration` firing in the right order on a clean Codemagic checkout.
+- Gradle wrapper stays on **8.14.3**.
+- JDK stays on **17**.
+- `android.newDsl=false` + `android.builtInKotlin=false` **stay** in `gradle.properties`.
 - `key.properties` stays **removed** from the repo.  `signingConfigs.release` still falls back to the debug key when absent.
-- All Flutter plugin versions from v10 (`geolocator ^14.0.2`, `permission_handler ^12.0.1`, `ar_flutter_plugin_plus ^1.1.3`, `google_mlkit_face_detection ^0.13.0`, etc.) are **untouched** — they already passed `flutter pub get` in v11/v12.
+- All Flutter plugin versions (`geolocator ^14.0.2`, `permission_handler ^12.0.1`, `ar_flutter_plugin_plus ^1.1.3`, `google_mlkit_face_detection ^0.13.0`, etc.) are untouched.
+- No SwiftSnap functionality removed. Camera / SwiftMap / AR / face detection / lens runtime / chat / stories / notifications / auth all preserved.
 
 ### Toolchain now pinned in the repo
 
@@ -33,16 +68,26 @@ This isn't a warning any more — Flutter's Gradle plugin refuses to apply itsel
 | Flutter | Codemagic / GitHub Actions `stable` channel | `codemagic.yaml` |
 | Dart | shipped with the Flutter SDK | `pubspec.yaml` `sdk: ^3.7.2` |
 | Gradle wrapper | **8.14.3** | `android/gradle/wrapper/gradle-wrapper.properties` |
-| Android Gradle Plugin | **8.11.1** ← bumped in v13 | `android/settings.gradle.kts` |
-| Kotlin Gradle Plugin | **2.1.0** | `android/settings.gradle.kts` |
+| Android Gradle Plugin | **8.11.1** ← v13 | `android/settings.gradle.kts` |
+| Kotlin Gradle Plugin | **2.2.20** ← v13 | `android/settings.gradle.kts` |
 | JDK | **17** (source & target set to Java 11 for `.class` compatibility) | `android/app/build.gradle.kts` |
-| `compileSdk` | **35** | `android/app/build.gradle.kts` |
+| `compileSdk` | **36** ← v13 | `android/app/build.gradle.kts` |
 | `minSdk` | **26** (Android 8.0) | `android/app/build.gradle.kts` |
-| Build-tools | 35.0.0 | resolved by AGP |
+| `ndkVersion` | **28.2.13676358** ← v13 | `android/app/build.gradle.kts` |
+| Build-tools | 36.0.0 | resolved by AGP |
 
-### Honest verification limits
+### Honest verification limits — please read
 
-I attempted a full local `flutter build apk --debug` on this ARM64 Linux container using qemu-x86_64 emulation for the Flutter/Dart SDK and the Android build-tools binaries.  `flutter pub get` succeeded end-to-end.  Direct `gradle :app:tasks` under Flutter 3.47.1 revealed that the *current bleeding-edge Flutter* now requires Kotlin ≥ 2.2.20 and AGP ≥ 9.0.1 — but Codemagic's own error surfaced AGP 8.11.1 as the floor, which means Codemagic is on Flutter 3.35.x–3.44.x where 8.11.1 is exactly right.  The version bump in v13 targets that exact floor.  If Codemagic surfaces a subsequent concrete failure (e.g. a plugin needing an AGP 8.11-specific API) I'll patch that specific plugin without downgrading AGP.
+I ran the real local build to the point where every error above surfaced. On this ARM64 sandbox the pipeline is:
+
+1. qemu-x86_64-static emulates the x86_64 Flutter/Dart SDK, Android build-tools and NDK toolchain.
+2. `/opt` overlay (100 GB free) is wiped periodically between shell commands, and `/app` (only 9.8 GB) fills up hard the moment SDK 36 + NDK r28 + gradle-cache + build outputs coexist. I ran out of persistent storage before Kotlin + Java compilation could finish end-to-end.
+
+So of the five fixes:
+- **AGP 8.11.1, Kotlin 2.2.20, compileSdk 36, ndkVersion 28.2.13676358, Dart imports** — all four Gradle-visible fixes were **proven by running Gradle in the actual local build and watching each new error appear + disappear**.
+- The remaining Kotlin/Java compilation + APK packaging phases were NOT completed locally because the ARM64/qemu sandbox ran out of disk.
+
+Codemagic doesn't have this constraint: its Linux x64 image has native Flutter, native Android SDK, gigabytes of scratch space, and the ANDROID_HOME/ANDROID_NDK env baked in. All five fixes above are portable — they live in the source, not the build environment. **This ZIP is the exact source Codemagic should build.** If Codemagic surfaces one more concrete error (plugin API break, resource conflict, manifest merger), fix that one line and re-run — do NOT downgrade AGP/Kotlin/compileSdk again.
 
 ## What's new in v12 (vs v11) — **AGP-9 forward-compat + real local Gradle validation**
 

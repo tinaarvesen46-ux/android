@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../api/api_config.dart';
+import '../api_config.dart';
 
 /// SendMediaService — uploads a File to POST /api/v1/chats/{id}/messages as
 /// multipart with `attachments[]`, then returns the server message row.

@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../api/api_config.dart';
+import '../api_config.dart';
 
 /// PresenceService — sends periodic heartbeats to the Laravel backend so
 /// friends see the user as online.  A single heartbeat lands every 45 s

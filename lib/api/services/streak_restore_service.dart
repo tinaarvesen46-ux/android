@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../api/api_config.dart';
+import '../api_config.dart';
 
 /// StreakRestoreService — Snapchat-style paid streak recovery client
 /// (Swift+ only, 1 per rolling 30 days, backend-enforced).
