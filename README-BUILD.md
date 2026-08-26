@@ -1,4 +1,4 @@
-# SwiftSnap Mobile — Build & Install Guide (v7)
+# SwiftSnap Mobile — Build & Install Guide (v8)
 
 **No Android Studio required.** Two free cloud services build the APK for you and email/host it — you just download and install on your phone.
 
@@ -8,6 +8,17 @@
 The Dart source in `lib/` powers **both** Android and iOS — everything below applies cross-platform.  iOS build via Xcode is still documented at the bottom for later.
 
 ---
+
+## What's new in v8 (vs v7) — **fixes Codemagic build failure**
+
+- 🚑 **Fixed the `pub get` blocker** — swapped the unreachable `ar_flutter_plugin_updated: ^0.7.7` for the actively-maintained `ar_flutter_plugin_plus: ^1.1.3` (Nov 2025 fork).  `flutter pub get` and `flutter build apk --release` now resolve cleanly on Codemagic and GitHub Actions.
+- ✅ **AR Sticker Baking** — `WorldLensScreen._bakeStickerGlb` builds a valid glTF-Binary (.glb) at runtime containing a 1×1 textured quad, and hands the file to ARCore/ARKit as `NodeType.localGLTF2`.  Every imported 2D sticker now renders as its own PNG flat-billboard in AR — no more placeholder Duck.  Baked files are cached in the app's temp dir keyed on URL hash.
+- ✅ **Lens Search Bar** — new `LensPickerSheet` (`lib/widgets/lens_picker_sheet.dart`) is a bottom-sheet catalog with a debounced global search box, category chips, and a 3-column result grid.  Uses the existing `GET /api/v1/lenses?search=…` backend param — no new endpoint required.
+- ✅ **Creator Tips** — new backend endpoint `POST /api/v1/lenses/{id}/tip` inserts real rows into `creator_revenue` (10% platform fee, `net_amount` credited to creator, sender audit row).  New `TipCreatorDialog` widget shows preset chips ($2/$5/$10/$20 + custom) and optional message.
+- ✅ **New Dart dependencies**
+  - `ar_flutter_plugin_plus: ^1.1.3` — replaces the yanked `*_updated` fork
+  - `http: ^1.2.2` — used by the GLB baker to fetch sticker PNGs
+  - `path_provider: ^2.1.5` — cache directory for baked GLBs
 
 ## What's new in v7 (vs v6)
 

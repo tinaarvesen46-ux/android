@@ -76,4 +76,20 @@ class LensService {
       return true;
     } catch (_) { return false; }
   }
+
+  /// Tip a lens creator.  Backend writes a real `creator_revenue` row.
+  /// Returns the parsed response `{ ok, amount, net_to_creator, currency }`
+  /// or null on failure.
+  Future<Map<String, dynamic>?> tip(String lensId, {required double amount, String? message, String currency = 'USD'}) async {
+    try {
+      final res = await _dio.post('/lenses/$lensId/tip',
+          data: {
+            'amount': amount,
+            if (message != null && message.isNotEmpty) 'message': message,
+            'currency': currency,
+          },
+          options: Options(headers: await _auth(), contentType: 'application/json'));
+      return Map<String, dynamic>.from(res.data as Map);
+    } catch (_) { return null; }
+  }
 }
