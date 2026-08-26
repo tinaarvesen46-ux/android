@@ -1,4 +1,4 @@
-# SwiftSnap Mobile — Build & Install Guide (v13)
+# SwiftSnap Mobile — Build & Install Guide (v14)
 
 **No Android Studio required.** Two free cloud services build the APK for you and email/host it — you just download and install on your phone.
 
@@ -8,6 +8,58 @@
 The Dart source in `lib/` powers **both** Android and iOS — everything below applies cross-platform.  iOS build via Xcode is still documented at the bottom for later.
 
 ---
+
+## What's new in v14 (vs v13) — Codemagic exposed 2 real compile errors after v13 fixed all the toolchain issues
+
+v13 got Codemagic past AGP / Kotlin / compileSdk / NDK / Dart-import validation.  The next Codemagic run surfaced two concrete compile-time errors, both fixed here:
+
+### 1) `google_fonts 6.x` → **`^8.2.1`** (was blocking Dart compilation)
+
+Codemagic error under Flutter 3.47.1 / Dart 3.13.1:
+
+> `.pub-cache/hosted/pub.dev/google_fonts-6.2.1/lib/src/google_fonts_variant.dart:152:42`
+> `Error: Constant evaluation error: const _fontWeightToFilenameWeightParts = { FontWeight.w100 ...`
+
+`google_fonts` 6.x uses a compile-time constant map keyed by `FontWeight`, which Dart 3.13 no longer accepts as `const` after `FontWeight` was reworked.  Bumping to `google_fonts: ^8.2.1` (current stable at time of build) resolves it — no API break for the ~6 places we call `GoogleFonts.xxxTextTheme()` / `GoogleFonts.xxx()` in `lib/`.  **Google Fonts functionality preserved.**
+
+### 2) `flutter_local_notifications` needs Java core-library desugaring (Android AAR metadata validation)
+
+Codemagic error:
+
+> `Dependency ':flutter_local_notifications' requires core library desugaring to be enabled for :app.`
+
+`flutter_local_notifications` 18.x uses `java.time.*` at compile time.  Because our `minSdk` is 26 the runtime is fine, but AGP still enforces the `coreLibraryDesugaring` opt-in as an AAR-metadata contract.  Fix applied in `android/app/build.gradle.kts`:
+
+```kotlin
+android {
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_17.toString()
+    }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+```
+
+Bumped `sourceCompatibility` / `targetCompatibility` / `jvmTarget` from `VERSION_11` to `VERSION_17` in the same change — `desugar_jdk_libs 2.1.x` requires Java 11+ *and* AGP 8.11.x already targets Java 17 by default, so aligning at 17 removes the last "will soon require Java 17" warning.  **`flutter_local_notifications` NOT removed.**
+
+### Explicitly NOT changed in v14
+
+- AGP stays on **8.11.1** (Codemagic warning about 9.0.1 is deprecation-only; do NOT chase it).
+- Kotlin stays on **2.2.20**.
+- Gradle stays on **8.14.3**.
+- `compileSdk = 36`, `ndkVersion = "28.2.13676358"`, `minSdk = 26` — all untouched.
+- No other Flutter plugin bumped.
+- No SwiftSnap functionality removed.
+
+---
+
 
 ## What's new in v13 (batch of five root-cause fixes for real Flutter/AGP/Kotlin build)
 
