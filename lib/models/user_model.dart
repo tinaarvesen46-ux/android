@@ -19,6 +19,9 @@ class UserModel {
   final PrivacyLevel privacyLevel;
   final int friendCount;
   final int streakDays;
+  final int snapScore;
+  final String? birthday;
+  final String? phone;
   final bool isFavorite;
   final bool isCloseFriend;
   final StaffRole staffRole;
@@ -40,6 +43,9 @@ class UserModel {
     this.privacyLevel = PrivacyLevel.publicProfile,
     this.friendCount = 0,
     this.streakDays = 0,
+    this.snapScore = 0,
+    this.birthday,
+    this.phone,
     this.isFavorite = false,
     this.isCloseFriend = false,
     this.staffRole = StaffRole.none,
@@ -87,6 +93,9 @@ class UserModel {
     PrivacyLevel? privacyLevel,
     int? friendCount,
     int? streakDays,
+    int? snapScore,
+    String? birthday,
+    String? phone,
     bool? isFavorite,
     bool? isCloseFriend,
     StaffRole? staffRole,
@@ -108,6 +117,9 @@ class UserModel {
       privacyLevel: privacyLevel ?? this.privacyLevel,
       friendCount: friendCount ?? this.friendCount,
       streakDays: streakDays ?? this.streakDays,
+      snapScore: snapScore ?? this.snapScore,
+      birthday: birthday ?? this.birthday,
+      phone: phone ?? this.phone,
       isFavorite: isFavorite ?? this.isFavorite,
       isCloseFriend: isCloseFriend ?? this.isCloseFriend,
       staffRole: staffRole ?? this.staffRole,
@@ -135,6 +147,9 @@ class UserModel {
       privacyLevel: _privacyLevelFromString(json['privacy_level'] as String?),
       friendCount: json['friend_count'] as int? ?? 0,
       streakDays: json['streak_days'] as int? ?? 0,
+      snapScore: json['snap_score'] as int? ?? json['score'] as int? ?? 0,
+      birthday: json['birthday'] as String? ?? json['date_of_birth'] as String?,
+      phone: json['phone'] as String? ?? json['mobile'] as String? ?? json['phone_number'] as String?,
       isFavorite: json['is_favorite'] as bool? ?? false,
       isCloseFriend: json['is_close_friend'] as bool? ?? false,
       staffRole: _staffRoleFromString(json['staff_role'] as String?),
@@ -159,6 +174,9 @@ class UserModel {
       'privacy_level': _privacyLevelToString(privacyLevel),
       'friend_count': friendCount,
       'streak_days': streakDays,
+      'snap_score': snapScore,
+      'birthday': birthday,
+      'phone': phone,
       'is_favorite': isFavorite,
       'is_close_friend': isCloseFriend,
       'staff_role': _staffRoleToString(staffRole),

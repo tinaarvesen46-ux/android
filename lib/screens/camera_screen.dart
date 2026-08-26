@@ -1,6 +1,8 @@
+import 'dart:async';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../theme/theme.dart';
 import 'story_creation_screen.dart';
 
@@ -11,13 +13,20 @@ class CameraScreen extends StatefulWidget {
   State<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMixin {
-  bool _isRecording = false;
+class _CameraScreenState extends State<CameraScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  // Real device camera
+  CameraController? _controller;
+  List<CameraDescription> _cameras = const [];
+  int _currentIdx = 0;
+  bool _initializing = true;
+  bool _permissionDenied = false;
   bool _isFrontCamera = true;
+  FlashMode _flash = FlashMode.off;
+
   int _selectedFilter = 0;
-  late AnimationController _recordingController;
   late AnimationController _pulseController;
-  
+
   final List<FilterEffect> _filters = [
     FilterEffect(name: 'Normal', icon: Icons.circle_outlined, color: Colors.white),
     FilterEffect(name: 'Glow', icon: Icons.auto_awesome, color: SwiftSnapTheme.primaryPurple),
@@ -26,45 +35,120 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
     FilterEffect(name: 'Neon', icon: Icons.lightbulb, color: SwiftSnapTheme.primaryPink),
     FilterEffect(name: 'Cool', icon: Icons.ac_unit, color: SwiftSnapTheme.accentCyan),
   ];
-  
+
   @override
   void initState() {
     super.initState();
-    _recordingController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 60),
-    );
+    WidgetsBinding.instance.addObserver(this);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
+    _boot();
   }
-  
+
+  Future<void> _boot() async {
+    // Camera permission is mandatory for a live preview. Mic is best-effort
+    // (only needed for video with sound).
+    final camStatus = await Permission.camera.request();
+    await Permission.microphone.request();
+    if (!camStatus.isGranted) {
+      if (mounted) setState(() { _permissionDenied = true; _initializing = false; });
+      return;
+    }
+    try {
+      _cameras = await availableCameras();
+    } catch (_) {
+      _cameras = const [];
+    }
+    if (_cameras.isEmpty) {
+      if (mounted) setState(() { _initializing = false; });
+      return;
+    }
+    final frontIdx = _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.front);
+    _currentIdx = _isFrontCamera && frontIdx >= 0 ? frontIdx : 0;
+    _isFrontCamera = _cameras[_currentIdx].lensDirection == CameraLensDirection.front;
+    await _initController();
+    if (mounted) setState(() { _initializing = false; });
+  }
+
+  Future<void> _initController() async {
+    await _controller?.dispose();
+    if (_cameras.isEmpty) return;
+    final controller = CameraController(
+      _cameras[_currentIdx],
+      ResolutionPreset.high,
+      enableAudio: true,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+    _controller = controller;
+    try {
+      await controller.initialize();
+      await controller.setFlashMode(_flash);
+    } catch (_) {/* leave preview loader visible if a camera fails */}
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _switchCamera() async {
+    if (_cameras.length < 2) return;
+    HapticFeedback.lightImpact();
+    _currentIdx = (_currentIdx + 1) % _cameras.length;
+    _isFrontCamera = _cameras[_currentIdx].lensDirection == CameraLensDirection.front;
+    setState(() {});
+    await _initController();
+  }
+
+  Future<void> _toggleFlash() async {
+    HapticFeedback.lightImpact();
+    _flash = switch (_flash) {
+      FlashMode.off => FlashMode.auto,
+      FlashMode.auto => FlashMode.always,
+      _ => FlashMode.off,
+    };
+    try { await _controller?.setFlashMode(_flash); } catch (_) {}
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _takePhoto() async {
+    HapticFeedback.mediumImpact();
+    final c = _controller;
+    if (c == null || !c.value.isInitialized || c.value.isTakingPicture) return;
+    try {
+      final shot = await c.takePicture();
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const StoryCreationScreen()),
+      );
+      debugPrint('SwiftSnap captured photo: ${shot.path}');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not capture photo: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      c.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initController();
+    }
+  }
+
   @override
   void dispose() {
-    _recordingController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     _pulseController.dispose();
+    _controller?.dispose();
     super.dispose();
   }
-  
-  void _toggleRecording() {
-    HapticFeedback.heavyImpact();
-    setState(() {
-      _isRecording = !_isRecording;
-      if (_isRecording) {
-        _recordingController.forward();
-      } else {
-        _recordingController.stop();
-        _recordingController.reset();
-      }
-    });
-  }
-  
-  void _switchCamera() {
-    HapticFeedback.lightImpact();
-    setState(() => _isFrontCamera = !_isFrontCamera);
-  }
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -77,84 +161,91 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
           _buildTopControls(),
           _buildBottomControls(),
           _buildFilterSelector(),
-          if (_isRecording) _buildRecordingIndicator(),
         ],
       ),
     );
   }
-  
+
   Widget _buildCameraPreview() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            SwiftSnapTheme.backgroundDark,
-            SwiftSnapTheme.surfaceColor.withOpacity(0.8),
-            SwiftSnapTheme.backgroundDark,
-          ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+    if (_permissionDenied) {
+      return Container(
+        color: Colors.black,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.camera_alt_outlined, size: 56, color: Colors.white54),
+                const SizedBox(height: 16),
+                const Text(
+                  'SwiftSnap needs camera access',
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Enable camera permission in Settings to take snaps.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => openAppSettings(),
+                  child: const Text('Open Settings'),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: SwiftSnapTheme.primaryPurple.withOpacity(0.15),
-              ),
-              child: Icon(
-                _isFrontCamera ? Icons.person_rounded : Icons.landscape_rounded,
-                size: 60,
-                color: SwiftSnapTheme.textMuted,
-              ),
-            ).animate(onPlay: (controller) => controller.repeat())
-              .shimmer(duration: 2000.ms, color: SwiftSnapTheme.primaryPurple.withOpacity(0.3)),
-            const SizedBox(height: 24),
-            Text(
-              'Camera Preview',
-              style: TextStyle(
-                color: SwiftSnapTheme.textMuted,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap capture button to take a photo',
-              style: TextStyle(
-                color: SwiftSnapTheme.textMuted.withOpacity(0.6),
-                fontSize: 13,
-              ),
-            ),
-          ],
+      );
+    }
+
+    final c = _controller;
+    if (_initializing || c == null || !c.value.isInitialized) {
+      return Container(
+        color: Colors.black,
+        child: const Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
+
+    // Full-bleed live preview (cover the whole screen without distortion).
+    return ClipRect(
+      child: OverflowBox(
+        alignment: Alignment.center,
+        child: FittedBox(
+          fit: BoxFit.cover,
+          child: SizedBox(
+            width: c.value.previewSize?.height ?? MediaQuery.of(context).size.width,
+            height: c.value.previewSize?.width ?? MediaQuery.of(context).size.height,
+            child: CameraPreview(c),
+          ),
         ),
       ),
     );
   }
-  
+
   Widget _buildOverlay() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.black.withOpacity(0.5),
-            Colors.transparent,
-            Colors.transparent,
-            Colors.black.withOpacity(0.7),
-          ],
-          stops: const [0.0, 0.15, 0.75, 1.0],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+    return IgnorePointer(
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.black.withOpacity(0.5),
+              Colors.transparent,
+              Colors.transparent,
+              Colors.black.withOpacity(0.7),
+            ],
+            stops: const [0.0, 0.15, 0.75, 1.0],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
         ),
       ),
     );
   }
-  
+
   Widget _buildTopControls() {
     return Positioned(
       top: 0,
@@ -173,8 +264,13 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
               Row(
                 children: [
                   _buildControlButton(
-                    icon: Icons.flash_off_rounded,
-                    onTap: () => HapticFeedback.lightImpact(),
+                    icon: _flash == FlashMode.off
+                        ? Icons.flash_off_rounded
+                        : _flash == FlashMode.always
+                            ? Icons.flash_on_rounded
+                            : Icons.flash_auto_rounded,
+                    onTap: _toggleFlash,
+                    isActive: _flash != FlashMode.off,
                   ),
                   const SizedBox(width: 12),
                   _buildControlButton(
@@ -194,7 +290,7 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
       ),
     );
   }
-  
+
   Widget _buildControlButton({
     required IconData icon,
     required VoidCallback onTap,
@@ -206,23 +302,15 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: isActive
-              ? SwiftSnapTheme.primaryPurple
-              : Colors.black.withOpacity(0.4),
+          color: isActive ? SwiftSnapTheme.primaryPurple : Colors.black.withOpacity(0.4),
           shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.withOpacity(0.2),
-          ),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
         ),
-        child: Icon(
-          icon,
-          color: Colors.white,
-          size: 22,
-        ),
+        child: Icon(icon, color: Colors.white, size: 22),
       ),
     );
   }
-  
+
   Widget _buildBottomControls() {
     return Positioned(
       bottom: 0,
@@ -244,7 +332,7 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
       ),
     );
   }
-  
+
   Widget _buildGalleryButton() {
     return GestureDetector(
       onTap: () => HapticFeedback.lightImpact(),
@@ -254,85 +342,39 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
         decoration: BoxDecoration(
           color: SwiftSnapTheme.surfaceColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.2),
-          ),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
         ),
-        child: const Icon(
-          Icons.photo_library_rounded,
-          color: Colors.white,
-          size: 26,
-        ),
+        child: const Icon(Icons.photo_library_rounded, color: Colors.white, size: 26),
       ),
     );
   }
-  
+
   Widget _buildCaptureButton() {
     return GestureDetector(
-      onTap: () {
-        HapticFeedback.mediumImpact();
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const StoryCreationScreen(),
-          ),
-        );
-      },
-      onLongPressStart: (_) => _toggleRecording(),
-      onLongPressEnd: (_) {
-        if (_isRecording) _toggleRecording();
-      },
+      onTap: _takePhoto,
       child: AnimatedBuilder(
         animation: _pulseController,
         builder: (context, child) {
           return Container(
-            width: _isRecording ? 88 : 80,
-            height: _isRecording ? 88 : 80,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(
-                color: _isRecording 
-                    ? Colors.red 
-                    : Colors.white,
-                width: 4,
-              ),
-              boxShadow: _isRecording
-                  ? [
-                      BoxShadow(
-                        color: Colors.red.withOpacity(
-                          0.3 + (_pulseController.value * 0.3),
-                        ),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ]
-                  : null,
+              border: Border.all(color: Colors.white, width: 4),
             ),
             padding: const EdgeInsets.all(4),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              decoration: BoxDecoration(
-                gradient: _isRecording
-                    ? const LinearGradient(
-                        colors: [Colors.red, Color(0xFFFF6B6B)],
-                      )
-                    : SwiftSnapTheme.primaryGradient,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: SwiftSnapTheme.primaryGradient,
                 shape: BoxShape.circle,
               ),
-              child: _isRecording
-                  ? const Icon(
-                      Icons.stop_rounded,
-                      color: Colors.white,
-                      size: 32,
-                    )
-                  : null,
             ),
           );
         },
       ),
     );
   }
-  
+
   Widget _buildSwitchCameraButton() {
     return GestureDetector(
       onTap: _switchCamera,
@@ -342,21 +384,17 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
         decoration: BoxDecoration(
           color: SwiftSnapTheme.surfaceColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.2),
-          ),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
         ),
         child: Icon(
-          _isFrontCamera 
-              ? Icons.camera_rear_rounded 
-              : Icons.camera_front_rounded,
+          _isFrontCamera ? Icons.camera_rear_rounded : Icons.camera_front_rounded,
           color: Colors.white,
           size: 26,
         ),
       ),
     );
   }
-  
+
   Widget _buildFilterSelector() {
     return Positioned(
       bottom: 140,
@@ -372,7 +410,6 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
           itemBuilder: (context, index) {
             final filter = _filters[index];
             final isSelected = _selectedFilter == index;
-            
             return GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();
@@ -383,34 +420,18 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
                 width: 64,
                 margin: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? filter.color.withOpacity(0.2)
-                      : Colors.black.withOpacity(0.3),
+                  color: isSelected ? filter.color.withOpacity(0.2) : Colors.black.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: isSelected
-                        ? filter.color
-                        : Colors.white.withOpacity(0.1),
+                    color: isSelected ? filter.color : Colors.white.withOpacity(0.1),
                     width: isSelected ? 2 : 1,
                   ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: filter.color.withOpacity(0.3),
-                            blurRadius: 12,
-                            spreadRadius: 0,
-                          ),
-                        ]
-                      : null,
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      filter.icon,
-                      color: isSelected ? filter.color : Colors.white.withOpacity(0.6),
-                      size: 24,
-                    ),
+                    Icon(filter.icon,
+                        color: isSelected ? filter.color : Colors.white.withOpacity(0.6), size: 24),
                     const SizedBox(height: 6),
                     Text(
                       filter.name,
@@ -429,81 +450,12 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
       ),
     );
   }
-  
-  Widget _buildRecordingIndicator() {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: SafeArea(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 60, vertical: 16),
-          child: AnimatedBuilder(
-            animation: _recordingController,
-            builder: (context, child) {
-              return Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                      ).animate(onPlay: (c) => c.repeat())
-                        .fadeIn(duration: 500.ms)
-                        .then()
-                        .fadeOut(duration: 500.ms),
-                      const SizedBox(width: 8),
-                      Text(
-                        _formatDuration(
-                          Duration(seconds: (_recordingController.value * 60).toInt()),
-                        ),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      value: _recordingController.value,
-                      backgroundColor: Colors.white.withOpacity(0.2),
-                      valueColor: const AlwaysStoppedAnimation(Colors.red),
-                      minHeight: 4,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-  
-  String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
-  }
 }
 
 class FilterEffect {
   final String name;
   final IconData icon;
   final Color color;
-  
-  FilterEffect({
-    required this.name,
-    required this.icon,
-    required this.color,
-  });
+
+  FilterEffect({required this.name, required this.icon, required this.color});
 }

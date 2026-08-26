@@ -7,7 +7,7 @@ import '../providers/app_provider.dart';
 import '../models/user_model.dart';
 import 'chats_screen.dart';
 import 'stories_screen.dart';
-import 'camera_screen.dart';
+import 'camera_first_screen.dart';
 import 'discover_screen.dart';
 import 'profile_screen.dart';
 import 'admin/admin_panel_screen.dart';
@@ -135,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     HapticFeedback.mediumImpact();
     Navigator.of(context).push(
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const CameraScreen(),
+        pageBuilder: (context, animation, secondaryAnimation) => const CameraFirstScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: animation,

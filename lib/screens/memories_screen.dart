@@ -2,56 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 import '../theme/theme.dart';
+import '../providers/app_provider.dart';
+import '../models/story_model.dart';
 
-class MemoriesScreen extends StatefulWidget {
+/// Memories = the authenticated user's own posted stories, loaded from the
+/// Laravel backend via StoryService (see AppProvider.loadInitialData).
+///
+/// NOTE: the backend does not expose a dedicated `/memories` endpoint, so
+/// Memories are derived from the user's own stories. If/when a real memories
+/// endpoint is added, swap `provider.stories.where((s) => s.isOwn)` for it.
+class MemoriesScreen extends StatelessWidget {
   const MemoriesScreen({super.key});
 
-  @override
-  State<MemoriesScreen> createState() => _MemoriesScreenState();
-}
-
-class _MemoriesScreenState extends State<MemoriesScreen> {
-  final List<Map<String, dynamic>> _memories = [
-    {
-      'date': 'December 25, 2025',
-      'title': 'Holiday Vibes',
-      'imageUrl': 'https://images.unsplash.com/photo-1512389142860-9c449e58a543?w=600',
-      'views': 234,
-    },
-    {
-      'date': 'November 10, 2025',
-      'title': 'Weekend Getaway',
-      'imageUrl': 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600',
-      'views': 187,
-    },
-    {
-      'date': 'October 5, 2025',
-      'title': 'Birthday Celebration',
-      'imageUrl': 'https://images.unsplash.com/photo-1464207687429-7505649dae38?w=600',
-      'views': 412,
-    },
-    {
-      'date': 'September 15, 2025',
-      'title': 'Summer Memories',
-      'imageUrl': 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=600',
-      'views': 356,
-    },
+  static const _months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
   ];
+
+  String _formatDate(DateTime d) => '${_months[d.month - 1]} ${d.day}, ${d.year}';
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: SwiftSnapTheme.backgroundDark,
       body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            _buildHeader(context),
-            _buildInfoCard(),
-            _buildMemoriesGrid(),
-            const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
-          ],
+        child: Consumer<AppProvider>(
+          builder: (context, provider, _) {
+            final memories = provider.stories.where((s) => s.isOwn).toList()
+              ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            return CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                _buildHeader(context),
+                _buildInfoCard(),
+                if (memories.isEmpty)
+                  _buildEmptyState()
+                else
+                  _buildMemoriesGrid(memories),
+                const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -79,11 +72,8 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.white.withOpacity(0.1)),
                     ),
-                    child: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: SwiftSnapTheme.textPrimary,
-                      size: 18,
-                    ),
+                    child: const Icon(Icons.arrow_back_ios_new_rounded,
+                        color: SwiftSnapTheme.textPrimary, size: 18),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -106,11 +96,8 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.white.withOpacity(0.1)),
               ),
-              child: const Icon(
-                Icons.settings_outlined,
-                color: SwiftSnapTheme.textPrimary,
-                size: 20,
-              ),
+              child: const Icon(Icons.settings_outlined,
+                  color: SwiftSnapTheme.textPrimary, size: 20),
             ),
           ],
         ),
@@ -124,12 +111,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              SwiftSnapTheme.primaryPurple.withOpacity(0.15),
-              SwiftSnapTheme.primaryPink.withOpacity(0.1),
-            ],
-          ),
+          gradient: LinearGradient(colors: [
+            SwiftSnapTheme.primaryPurple.withOpacity(0.15),
+            SwiftSnapTheme.primaryPink.withOpacity(0.1),
+          ]),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: SwiftSnapTheme.primaryPurple.withOpacity(0.3)),
         ),
@@ -142,11 +127,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                 gradient: SwiftSnapTheme.primaryGradient,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(
-                Icons.auto_awesome_rounded,
-                color: Colors.white,
-                size: 32,
-              ),
+              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 32),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -164,10 +145,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                   const SizedBox(height: 4),
                   Text(
                     'Relive your favorite stories and memories',
-                    style: TextStyle(
-                      color: SwiftSnapTheme.textSecondary,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 13),
                   ),
                 ],
               ),
@@ -178,7 +156,44 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     );
   }
 
-  Widget _buildMemoriesGrid() {
+  Widget _buildEmptyState() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: const BoxDecoration(
+                color: SwiftSnapTheme.surfaceColor,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.photo_album_outlined,
+                  color: SwiftSnapTheme.textMuted, size: 40),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'No memories yet',
+              style: TextStyle(
+                color: SwiftSnapTheme.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Stories you post will be saved here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: SwiftSnapTheme.textMuted, fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMemoriesGrid(List<StoryModel> memories) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       sliver: SliverGrid(
@@ -190,30 +205,26 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
         ),
         delegate: SliverChildBuilderDelegate(
           (context, index) {
-            final memory = _memories[index];
+            final memory = memories[index];
             return _buildMemoryCard(memory)
                 .animate(delay: Duration(milliseconds: 50 * index))
                 .fadeIn(duration: 300.ms)
                 .scale(begin: const Offset(0.8, 0.8), end: const Offset(1, 1));
           },
-          childCount: _memories.length,
+          childCount: memories.length,
         ),
       ),
     );
   }
 
-  Widget _buildMemoryCard(Map<String, dynamic> memory) {
+  Widget _buildMemoryCard(StoryModel memory) {
     return GestureDetector(
       onTap: () => HapticFeedback.lightImpact(),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6)),
           ],
         ),
         child: ClipRRect(
@@ -222,19 +233,19 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
             fit: StackFit.expand,
             children: [
               CachedNetworkImage(
-                imageUrl: memory['imageUrl'],
+                imageUrl: memory.mediaUrl,
                 fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
+                placeholder: (context, url) => Container(color: SwiftSnapTheme.surfaceColor),
+                errorWidget: (context, url, error) => Container(
                   color: SwiftSnapTheme.surfaceColor,
+                  child: const Icon(Icons.image_not_supported_outlined,
+                      color: SwiftSnapTheme.textMuted),
                 ),
               ),
               Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.8),
-                    ],
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     stops: const [0.4, 1.0],
@@ -253,14 +264,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.visibility_outlined,
-                        color: Colors.white,
-                        size: 14,
-                      ),
+                      const Icon(Icons.visibility_outlined, color: Colors.white, size: 14),
                       const SizedBox(width: 4),
                       Text(
-                        '${memory['views']}',
+                        '${memory.viewerCount}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -279,7 +286,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      memory['title'],
+                      memory.caption?.isNotEmpty == true ? memory.caption! : 'Memory',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,
@@ -290,11 +297,8 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      memory['date'],
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 11,
-                      ),
+                      _formatDate(memory.createdAt),
+                      style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11),
                     ),
                   ],
                 ),

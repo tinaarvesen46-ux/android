@@ -18,7 +18,11 @@ class AuthService {
     return await _client.post(
       ApiConfig.login,
       data: {
+        // Backend requires `email`; we also send `identifier`/`username`
+        // so either an email or username in the field works.
+        'email': identifier,
         'identifier': identifier,
+        'username': identifier,
         'password': password,
         'device_name': deviceName ?? 'mobile',
       },

@@ -39,7 +39,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             slivers: [
               _buildHeader(user),
               _buildProfileCard(user),
-              _buildStatsCard(),
+              _buildStatsCard(user, provider),
               _buildSettingsSection(),
               _buildPrivacySection(),
               _buildAccountSection(),
@@ -129,7 +129,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         } else if (icon == Icons.share_rounded) {
           Share.share(
-            'Check out my SwiftSnap profile! @johndoe',
+            'Check out my SwiftSnap profile!',
             subject: 'My SwiftSnap Profile',
           );
         }
@@ -277,8 +277,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
                         children: [
                           if (user.accountStatus == AccountStatus.creator)
                             Container(
@@ -311,7 +312,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                           if (user.accountStatus == AccountStatus.creator && user.staffRole != StaffRole.none)
-                            const SizedBox(width: 6),
+                            const SizedBox.shrink(),
                           if (user.staffRole != StaffRole.none)
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -456,7 +457,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
   
-  Widget _buildStatsCard() {
+  Widget _buildStatsCard(dynamic user, AppProvider provider) {
+    final friendsCount = user.friendCount > 0 ? user.friendCount : provider.friends.length;
     return SliverToBoxAdapter(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -481,12 +483,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 );
               },
-              child: _buildStatItem('2.4K', 'Friends', SwiftSnapTheme.primaryPurple),
+              child: _buildStatItem(_formatCount(friendsCount), 'Friends', SwiftSnapTheme.primaryPurple),
             ),
             _buildStatDivider(),
-            _buildStatItem('156', 'Streak 🔥', SwiftSnapTheme.accentOrange),
+            _buildStatItem('${user.streakDays}', 'Streak 🔥', SwiftSnapTheme.accentOrange),
             _buildStatDivider(),
-            _buildStatItem('15.2K', 'Score', SwiftSnapTheme.accentCyan),
+            _buildStatItem(_formatCount(user.snapScore), 'Score', SwiftSnapTheme.accentCyan),
           ],
         ),
       ).animate(delay: 100.ms).fadeIn(duration: 300.ms).slideY(begin: 0.1, end: 0),
@@ -523,6 +525,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       height: 40,
       color: Colors.white.withOpacity(0.1),
     );
+  }
+
+  String _formatCount(int value) {
+    if (value >= 1000000) {
+      return '${(value / 1000000).toStringAsFixed(1)}M';
+    }
+    if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(1)}K';
+    }
+    return '$value';
   }
   
   Widget _buildSettingsSection() {

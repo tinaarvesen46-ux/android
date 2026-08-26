@@ -7,6 +7,7 @@ import '../providers/app_provider.dart';
 import '../models/user_model.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
+import '../api/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -400,41 +401,67 @@ class _LoginScreenState extends State<LoginScreen> {
   void _handleLogin() async {
     HapticFeedback.mediumImpact();
 
-    if (_emailController.text.trim().isEmpty) {
+    final identifier = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (identifier.isEmpty) {
       _showError('Please enter your email or username');
       return;
     }
-
-    if (_passwordController.text.trim().isEmpty) {
+    if (password.isEmpty) {
       _showError('Please enter your password');
       return;
     }
 
     setState(() => _isLoading = true);
 
-    // TODO: Replace with real API call — AuthService.login(email, password)
-    await Future.delayed(const Duration(milliseconds: 1500));
+    try {
+      final auth = AuthService();
+      final res = await auth.login(identifier: identifier, password: password);
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+      if (!res.isSuccess || res.data == null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          _showError(res.errorMessage);
+        }
+        return;
+      }
 
-    // Build a mock user and hand it to the provider.
-    // The provider sets isLoggedIn = true which triggers AuthGate → HomeScreen.
-    final mockUser = UserModel(
-      id: 'user_001',
-      username: 'alex_vibe',
-      displayName: 'Alex Chen',
-      email: _emailController.text.trim(),
-      avatarUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=400&fit=crop',
-      bio: 'Creator • Photographer • Adventure Seeker 📸',
-      isVerified: true,
-      isOnline: true,
-      accountStatus: AccountStatus.creator,
-      staffRole: StaffRole.administrator,
-      streakDays: 42,
-    );
-    if (mounted) {
-      Provider.of<AppProvider>(context, listen: false).login(mockUser);
+      // Persist auth tokens (tolerant to common Laravel key names).
+      final payload = res.data!;
+      final tokenRaw = payload['access_token'] ?? payload['token'] ?? payload['access'];
+      final token = tokenRaw is String ? tokenRaw : '';
+      final refreshRaw = payload['refresh_token'] ?? payload['refresh'];
+      final refresh = refreshRaw is String ? refreshRaw : token;
+      if (token.isNotEmpty) {
+        await auth.saveTokens(token, refresh);
+      }
+
+      // Resolve the real authenticated user: prefer inline user payload,
+      // otherwise fetch /users/me.
+      UserModel? user;
+      final inlineUser = payload['user'] ?? payload['data'];
+      if (inlineUser is Map<String, dynamic>) {
+        try {
+          user = UserModel.fromJson(inlineUser);
+        } catch (_) {}
+      }
+      user ??= (await auth.getCurrentUser()).data;
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (user == null) {
+        _showError('Signed in, but could not load your profile. Please try again.');
+        return;
+      }
+
+      Provider.of<AppProvider>(context, listen: false).login(user);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showError('Login failed. Please check your connection and try again.');
+      }
     }
   }
 

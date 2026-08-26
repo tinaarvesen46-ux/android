@@ -8,6 +8,7 @@ import '../providers/app_provider.dart';
 import '../models/user_model.dart';
 import 'terms_of_service_screen.dart';
 import 'privacy_policy_screen.dart';
+import '../api/services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -136,28 +137,68 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     setState(() => _isLoading = true);
-    // TODO: Replace with real API call — AuthService.verifyOtp(code)
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+    try {
+      final auth = AuthService();
+      final monthIndex = _selectedMonth != null ? _months.indexOf(_selectedMonth!) + 1 : 1;
+      final dob = DateTime(
+        int.tryParse(_yearController.text.trim()) ?? 2000,
+        monthIndex < 1 ? 1 : monthIndex,
+        int.tryParse(_dayController.text.trim()) ?? 1,
+      );
+      final res = await auth.register(
+        username: _usernameController.text.trim(),
+        email: _useEmail
+            ? _emailController.text.trim()
+            : '${_phoneController.text.trim()}@phone.local',
+        password: _passwordController.text,
+        passwordConfirmation: _passwordController.text,
+        displayName: _firstNameController.text.trim() +
+            (_lastNameController.text.trim().isNotEmpty
+                ? ' ${_lastNameController.text.trim()}'
+                : ''),
+        dateOfBirth: dob,
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim().isEmpty
+            ? null
+            : _lastNameController.text.trim(),
+      );
 
-    // On success, build mock user and log in
-    final mockUser = UserModel(
-      id: 'user_new',
-      username: _usernameController.text.trim(),
-      displayName: _firstNameController.text.trim() +
-          (_lastNameController.text.trim().isNotEmpty
-              ? ' ${_lastNameController.text.trim()}'
-              : ''),
-      email: _useEmail ? _emailController.text.trim() : null,
-      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop',
-      isOnline: true,
-      accountStatus: AccountStatus.normal,
-      staffRole: StaffRole.none,
-      streakDays: 0,
-    );
-    if (mounted) {
-      Provider.of<AppProvider>(context, listen: false).login(mockUser);
+      if (!res.isSuccess || res.data == null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          _showError(res.errorMessage);
+        }
+        return;
+      }
+
+      final payload = res.data!;
+      final tokenRaw = payload['access_token'] ?? payload['token'] ?? payload['access'];
+      final token = tokenRaw is String ? tokenRaw : '';
+      final refreshRaw = payload['refresh_token'] ?? payload['refresh'];
+      final refresh = refreshRaw is String ? refreshRaw : token;
+      if (token.isNotEmpty) await auth.saveTokens(token, refresh);
+
+      UserModel? user;
+      final inlineUser = payload['user'] ?? payload['data'];
+      if (inlineUser is Map<String, dynamic>) {
+        try {
+          user = UserModel.fromJson(inlineUser);
+        } catch (_) {}
+      }
+      user ??= (await auth.getCurrentUser()).data;
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      if (user == null) {
+        _showError('Account created, but could not load your profile.');
+        return;
+      }
+      Provider.of<AppProvider>(context, listen: false).login(user);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showError('Registration failed. Please try again.');
+      }
     }
   }
 

@@ -121,18 +121,18 @@ class AccountSettingsScreen extends StatelessWidget {
               _buildAccountTile(
                 context,
                 title: 'Birthday',
-                value: 'January 15, 1995',
+                value: user.birthday ?? 'Not set',
                 onTap: () => _showBirthdayPicker(context),
               ),
               _buildDivider(),
               _buildAccountTile(
                 context,
                 title: 'Mobile Number',
-                value: '+1 (555) 123-4567',
+                value: user.phone ?? 'Not set',
                 onTap: () => _navigateToEdit(
                   context,
                   'Mobile Number',
-                  '+1 (555) 123-4567',
+                  user.phone ?? '',
                   (value) => user,
                 ),
               ),
