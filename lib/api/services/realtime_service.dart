@@ -32,6 +32,10 @@ class RealtimeService {
 
   RealtimeEventHandler? onEvent;
   void Function(bool connected)? onConnectionChange;
+  /// Presence: full member id set for a presence channel (on subscribe).
+  void Function(String channel, Set<String> userIds)? onPresenceSync;
+  /// Presence: a single member joined (true) or left (false).
+  void Function(String channel, String userId, bool joined)? onPresenceChange;
 
   bool get isConnected => _connected;
   String? get socketId => _socketId;
@@ -97,6 +101,26 @@ class RealtimeService {
       case 'pusher:error':
         return;
       case 'pusher_internal:subscription_succeeded':
+        if (channel.startsWith('presence-')) {
+          // data = { presence: { ids: [...], hash: {...}, count } }
+          final presence = data['presence'];
+          if (presence is Map && presence['ids'] is List) {
+            final ids = (presence['ids'] as List).map((e) => e.toString()).toSet();
+            onPresenceSync?.call(channel, ids);
+          }
+        }
+        return;
+      case 'pusher_internal:member_added':
+        if (channel.startsWith('presence-')) {
+          final id = (data['user_id'] ?? data['id'] ?? '').toString();
+          if (id.isNotEmpty) onPresenceChange?.call(channel, id, true);
+        }
+        return;
+      case 'pusher_internal:member_removed':
+        if (channel.startsWith('presence-')) {
+          final id = (data['user_id'] ?? data['id'] ?? '').toString();
+          if (id.isNotEmpty) onPresenceChange?.call(channel, id, false);
+        }
         return;
     }
 

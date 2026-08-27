@@ -16,6 +16,7 @@ import 'download_data_screen.dart';
 import 'blocked_users_screen.dart';
 import 'help_support_screen.dart';
 import 'privacy_policy_screen.dart';
+import 'achievements_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -624,9 +625,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: 'Account',
         items: [
           _SettingsItem(
-            icon: Icons.devices_rounded,
-            label: 'Active Sessions',
-            value: '3 devices',
+            icon: Icons.emoji_events_rounded,
+            label: 'Achievements',
+            subtitle: 'Your badges & progress',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AchievementsScreen(),
+                ),
+              );
+            },
           ),
           _SettingsItem(
             icon: Icons.download_rounded,

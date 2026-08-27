@@ -68,6 +68,13 @@ class AppProvider extends ChangeNotifier {
     _currentIndex = 0;
     _isOnline = true;
     _activeChatId = null;
+    // Cancel typing timers and clear transient realtime state.
+    for (final t in _typingTimers.values) { t.cancel(); }
+    _typingTimers.clear();
+    _typing.clear();
+    _onlineUserIds.clear();
+    _incomingCall = null;
+    _callSignalHandler = null;
     RealtimeService.instance.disconnect();
     notifyListeners();
   }
@@ -353,6 +360,8 @@ class AppProvider extends ChangeNotifier {
   // ─────────────────────────────────────────────────────────────────────────
   void _initRealtime() {
     RealtimeService.instance.onEvent = _onRealtimeEvent;
+    RealtimeService.instance.onPresenceSync = _onPresenceSync;
+    RealtimeService.instance.onPresenceChange = _onPresenceChange;
     RealtimeService.instance.connect();
     // Ring on incoming calls even before opening any chat: listen on my own
     // private user channel.
@@ -360,6 +369,30 @@ class AppProvider extends ChangeNotifier {
     if (myId != null && myId.isNotEmpty) {
       RealtimeService.instance.subscribe('private-user.$myId');
     }
+    // Global presence: who is online right now (Reverb presence channel).
+    RealtimeService.instance.subscribe('presence-online');
+  }
+
+  // ── Presence (real Reverb presence channel 'online') ──
+  final Set<String> _onlineUserIds = {};
+  bool isUserOnline(String userId) => _onlineUserIds.contains(userId);
+
+  void _onPresenceSync(String channel, Set<String> ids) {
+    if (channel != 'presence-online') return;
+    _onlineUserIds
+      ..clear()
+      ..addAll(ids);
+    notifyListeners();
+  }
+
+  void _onPresenceChange(String channel, String userId, bool joined) {
+    if (channel != 'presence-online') return;
+    if (joined) {
+      _onlineUserIds.add(userId);
+    } else {
+      _onlineUserIds.remove(userId);
+    }
+    notifyListeners();
   }
 
   // ── Calling: incoming ring + per-call signaling routing ──
@@ -391,6 +424,10 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> unsubscribeFromConversation(String chatId) async {
     if (_activeChatId == chatId) _activeChatId = null;
+    // Clear any stale typing state/timer for this conversation on disposal.
+    _typingTimers[chatId]?.cancel();
+    _typingTimers.remove(chatId);
+    if (_typing.remove(chatId) != null) notifyListeners();
     await RealtimeService.instance.unsubscribe('private-conversation.$chatId');
   }
 

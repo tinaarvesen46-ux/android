@@ -320,13 +320,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
                             ],
                           ),
                           const SizedBox(height: 2),
-                          Row(
+                          Builder(builder: (context) {
+                            final live = context.watch<AppProvider>();
+                            final online = live.isUserOnline(widget.chat.participant.id);
+                            return Row(
                             children: [
                               Container(
                                 width: 8,
                                 height: 8,
                                 decoration: BoxDecoration(
-                                  color: widget.chat.participant.isOnline
+                                  color: online
                                       ? SwiftSnapTheme.online
                                       : SwiftSnapTheme.offline,
                                   shape: BoxShape.circle,
@@ -334,13 +337,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                context.watch<AppProvider>().isTypingIn(widget.chat.id)
+                                live.isTypingIn(widget.chat.id)
                                     ? 'typing…'
-                                    : (widget.chat.participant.isOnline
+                                    : (online
                                         ? 'Online'
                                         : widget.chat.participant.lastSeenFormatted),
                                 style: TextStyle(
-                                  color: widget.chat.participant.isOnline
+                                  color: online
                                       ? SwiftSnapTheme.online
                                       : SwiftSnapTheme.textMuted,
                                   fontSize: 12,
@@ -348,7 +351,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
                                 ),
                               ),
                             ],
-                          ),
+                          );}),
                         ],
                       ),
                     ],
