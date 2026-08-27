@@ -276,13 +276,20 @@ class _CameraFirstScreenState extends State<CameraFirstScreen> with WidgetsBindi
           child: ClipRect(
             child: ColorFiltered(
               colorFilter: ColorFilter.matrix(_livePreviewMatrix()),
-              child: OverflowBox(
-                alignment: Alignment.center,
-                child: FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: size.width,
-                    height: size.width / _controller!.value.aspectRatio,
+              // Aspect-preserving full-screen cover: scale the natural-ratio
+              // preview up until it fills the viewport, then ClipRect crops the
+              // excess. Never forces width/height → never stretches/warps.
+              // Works for any sensor ratio / device (computed at runtime).
+              child: Center(
+                child: Transform.scale(
+                  scale: () {
+                    var s = (size.width / size.height) * _controller!.value.aspectRatio;
+                    if (s < 1) s = 1 / s;
+                    return s;
+                  }(),
+                  alignment: Alignment.center,
+                  child: AspectRatio(
+                    aspectRatio: _controller!.value.aspectRatio,
                     child: CameraPreview(_controller!),
                   ),
                 ),
