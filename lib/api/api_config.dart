@@ -139,6 +139,15 @@ class ApiConfig {
   static String get adminAuditLogs => '$apiBaseUrl$admin/audit-logs';
   static String get adminDashboard => '$apiBaseUrl$admin/dashboard';
 
+  // ── Realtime (Laravel Reverb, Pusher protocol) ──
+  // Public app key (safe to embed). Server: wss://ws.vexor.to via Cloudflare.
+  static const String reverbKey = '3a5662497ae6b060ad92c3d40116de69';
+  static const String reverbHost = 'ws.vexor.to';
+  static const int reverbPort = 443;
+
+  // Token-authenticated broadcasting auth endpoint for private/presence channels.
+  static String get broadcastAuthUrl => '$apiBaseUrl/broadcasting/auth';
+
   // WebSocket URL for real-time features
-  static String get websocketUrl => 'wss://vexor.to/ws'; // Update this!
+  static String get websocketUrl => 'wss://$reverbHost';
 }

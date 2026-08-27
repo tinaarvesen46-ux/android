@@ -186,11 +186,20 @@ class _CameraFirstScreenState extends State<CameraFirstScreen> with WidgetsBindi
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(fit: StackFit.expand, children: [
-        // Live preview
-        Center(
-          child: AspectRatio(
-            aspectRatio: _controller!.value.aspectRatio,
-            child: CameraPreview(_controller!),
+        // Live preview — full-screen cover (fills like Snapchat, crops excess)
+        Positioned.fill(
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.center,
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: size.width,
+                  height: size.width / _controller!.value.aspectRatio,
+                  child: CameraPreview(_controller!),
+                ),
+              ),
+            ),
           ),
         ),
         // Top bar
@@ -223,42 +232,33 @@ class _CameraFirstScreenState extends State<CameraFirstScreen> with WidgetsBindi
         Positioned(
           bottom: 120, left: 0, right: 0,
           child: SizedBox(
-            height: 88,
+            height: 72,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               itemBuilder: (_, i) {
                 final p = _presets[i];
                 final active = i == _presetIdx;
-                return GestureDetector(
-                  onTap: () => setState(() => _presetIdx = i),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                    Container(
-                      width: 52, height: 52,
+                return Center(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _presetIdx = i),
+                    child: Container(
+                      width: 56, height: 56,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: active ? const LinearGradient(colors: [Color(0xFFB78BFF), Color(0xFFFF80C6)]) : null,
+                        color: active ? null : Colors.black.withOpacity(0.35),
                         border: Border.all(color: Colors.white70, width: active ? 2 : 1),
                       ),
                       child: Center(
                         child: Text('${p['label']}'.substring(0, 1),
-                            style: TextStyle(color: Colors.white, fontWeight: active ? FontWeight.w800 : FontWeight.w500)),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: active ? FontWeight.w800 : FontWeight.w500)),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      width: 56,
-                      child: Text(p['label'] ?? '',
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: false,
-                          style: TextStyle(color: active ? Colors.white : Colors.white70, fontSize: 11)),
-                    ),
-                  ]),
+                  ),
                 );
               },
               separatorBuilder: (_, __) => const SizedBox(width: 12),

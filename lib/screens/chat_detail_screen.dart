@@ -3,10 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:ui';
+import 'package:image_picker/image_picker.dart';
 import '../theme/theme.dart';
 import '../models/chat_model.dart';
 import '../models/user_model.dart';
 import '../providers/app_provider.dart';
+import '../widgets/report_dialog.dart';
+import '../api/services/user_service.dart';
+import '../api/services/friend_service.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final ChatModel chat;
@@ -22,8 +26,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   bool _isTyping = false;
-  bool _showEmoji = false;
   late AnimationController _sendButtonController;
+  AppProvider? _provider;
   
   @override
   void initState() {
@@ -32,16 +36,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
       vsync: this,
       duration: const Duration(milliseconds: 200),
     );
-    // Load real message history + mark conversation read.
+    // Load real message history + mark conversation read + go live.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<AppProvider>();
+      _provider = provider;
       provider.loadChatMessages(widget.chat.id);
       provider.markChatAsRead(widget.chat.id);
+      provider.subscribeToConversation(widget.chat.id);
     });
   }
   
   @override
   void dispose() {
+    _provider?.unsubscribeFromConversation(widget.chat.id);
     _messageController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
@@ -60,6 +67,123 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
     
     context.read<AppProvider>().sendMessage(widget.chat.id, content);
     _scrollToBottom();
+  }
+
+  void _comingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$feature isn\'t available yet')),
+    );
+  }
+
+  Future<void> _pickAndSendMedia() async {
+    final source = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: SwiftSnapTheme.surfaceColor,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_rounded, color: SwiftSnapTheme.primaryPurple),
+              title: const Text('Photo from library', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
+              onTap: () => Navigator.pop(context, 'image'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.videocam_rounded, color: SwiftSnapTheme.primaryPink),
+              title: const Text('Video from library', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
+              onTap: () => Navigator.pop(context, 'video'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    final picker = ImagePicker();
+    final XFile? file = source == 'video'
+        ? await picker.pickVideo(source: ImageSource.gallery)
+        : await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (file == null || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Uploading media…')));
+    final err = await context
+        .read<AppProvider>()
+        .sendMediaMessage(widget.chat.id, file.path, type: source);
+    if (!mounted) return;
+    messenger.showSnackBar(SnackBar(content: Text(err ?? 'Media sent')));
+    _scrollToBottom();
+  }
+
+  void _showEmojiSheet() {
+    const emojis = ['😀','😂','😍','😊','😉','😎','😢','😭','😡','👍','👎','🙏',
+      '👏','🔥','❤️','💜','💯','🎉','😅','🤔','😴','🥳','😱','🤩','😇','🙌','💪','✨'];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: SwiftSnapTheme.surfaceColor,
+      builder: (_) => SafeArea(
+        child: Container(
+          height: 240,
+          padding: const EdgeInsets.all(12),
+          child: GridView.count(
+            crossAxisCount: 7,
+            children: emojis
+                .map((e) => GestureDetector(
+                      onTap: () {
+                        _messageController.text += e;
+                        setState(() => _isTyping = _messageController.text.isNotEmpty);
+                        _sendButtonController.forward();
+                        Navigator.pop(context);
+                        _focusNode.requestFocus();
+                      },
+                      child: Center(child: Text(e, style: const TextStyle(fontSize: 26))),
+                    ))
+                .toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showChatOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: SwiftSnapTheme.surfaceColor,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.person_rounded, color: SwiftSnapTheme.textPrimary),
+              title: const Text('View profile', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
+              onTap: () { Navigator.pop(context); _showProfileSheet(); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.flag_outlined, color: SwiftSnapTheme.textPrimary),
+              title: const Text('Report user', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
+              onTap: () {
+                Navigator.pop(context);
+                ReportDialog.show(context,
+                    userId: widget.chat.participant.id,
+                    targetLabel: '@${widget.chat.participant.username}');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.block_rounded, color: SwiftSnapTheme.busy),
+              title: const Text('Block user', style: TextStyle(color: SwiftSnapTheme.busy)),
+              onTap: () async {
+                Navigator.pop(context);
+                final res = await UserService().blockUser(widget.chat.participant.id);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(res.isSuccess
+                          ? 'Blocked @${widget.chat.participant.username}'
+                          : res.errorMessage)));
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
   
   void _scrollToBottom() {
@@ -182,9 +306,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
                   ),
                 ),
                 const Spacer(),
-                _buildHeaderAction(Icons.videocam_rounded),
-                _buildHeaderAction(Icons.call_rounded),
-                _buildHeaderAction(Icons.more_vert_rounded),
+                _buildHeaderAction(Icons.videocam_rounded,
+                    () => _comingSoon('Video calling')),
+                _buildHeaderAction(Icons.call_rounded,
+                    () => _comingSoon('Voice calling')),
+                _buildHeaderAction(Icons.more_vert_rounded, _showChatOptions),
               ],
             ),
           ),
@@ -213,9 +339,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
     );
   }
   
-  Widget _buildHeaderAction(IconData icon) {
+  Widget _buildHeaderAction(IconData icon, VoidCallback onTap) {
     return GestureDetector(
-      onTap: () => HapticFeedback.lightImpact(),
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
       child: Container(
         width: 40,
         height: 40,
@@ -284,7 +413,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           GestureDetector(
-            onTap: () => HapticFeedback.lightImpact(),
+            onTap: _pickAndSendMedia,
             child: Container(
               width: 44,
               height: 44,
@@ -343,7 +472,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
                     ),
                   ),
                   GestureDetector(
-                    onTap: () => setState(() => _showEmoji = !_showEmoji),
+                    onTap: _showEmojiSheet,
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Icon(
@@ -633,14 +762,28 @@ class _ProfileSheet extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: _buildActionButton(
-                    icon: Icons.person_add_outlined,
-                    label: 'Add Friend',
-                    isPrimary: true,
+                  child: GestureDetector(
+                    onTap: () async {
+                      final res = await FriendService().sendFriendRequest(user.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(res.isSuccess
+                                ? 'Friend request sent to @${user.username}'
+                                : res.errorMessage)));
+                      }
+                    },
+                    child: _buildActionButton(
+                      icon: Icons.person_add_outlined,
+                      label: 'Add Friend',
+                      isPrimary: true,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                _buildIconAction(Icons.more_horiz_rounded),
+                GestureDetector(
+                  onTap: () => _showProfileOptions(context),
+                  child: _buildIconAction(Icons.more_horiz_rounded),
+                ),
               ],
             ),
           ),
@@ -673,6 +816,40 @@ class _ProfileSheet extends StatelessWidget {
     );
   }
   
+  void _showProfileOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: SwiftSnapTheme.surfaceColor,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.flag_outlined, color: SwiftSnapTheme.textPrimary),
+              title: const Text('Report user', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
+              onTap: () {
+                Navigator.pop(context);
+                ReportDialog.show(context, userId: user.id, targetLabel: '@${user.username}');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.block_rounded, color: SwiftSnapTheme.busy),
+              title: const Text('Block user', style: TextStyle(color: SwiftSnapTheme.busy)),
+              onTap: () async {
+                Navigator.pop(context);
+                final res = await UserService().blockUser(user.id);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(res.isSuccess ? 'Blocked @${user.username}' : res.errorMessage)));
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildActionButton({
     required IconData icon,
     required String label,

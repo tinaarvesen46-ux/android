@@ -120,17 +120,23 @@ class _ChatsScreenState extends State<ChatsScreen> with SingleTickerProviderStat
         child: _isSearching
             ? _buildSearchField()
             : Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  ShaderMask(
-                    shaderCallback: (bounds) =>
-                        SwiftSnapTheme.primaryGradient.createShader(bounds),
-                    child: const Text(
-                      'SwiftSnap',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
+                  Flexible(
+                    child: ShaderMask(
+                      shaderCallback: (bounds) =>
+                          SwiftSnapTheme.primaryGradient.createShader(bounds),
+                      child: const Text(
+                        'SwiftSnap',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -0.5,
+                        ),
                       ),
                     ),
                   ),

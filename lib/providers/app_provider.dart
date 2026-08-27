@@ -7,6 +7,7 @@ import '../api/services/chat_service.dart';
 import '../api/services/friend_service.dart';
 import '../api/services/story_service.dart';
 import '../api/services/notification_service.dart';
+import '../api/services/realtime_service.dart';
 
 class AppProvider extends ChangeNotifier {
   int _currentIndex = 0;
@@ -20,6 +21,7 @@ class AppProvider extends ChangeNotifier {
   List<FriendRequestModel> _friendRequests = [];
   final Map<String, List<MessageModel>> _chatMessages = {};
   List<Map<String, dynamic>> _notifications = [];
+  String? _activeChatId;
 
   List<Map<String, dynamic>> get notifications => _notifications;
   int get unreadNotificationCount =>
@@ -48,6 +50,7 @@ class AppProvider extends ChangeNotifier {
     _isLoggedIn = true;
     _currentIndex = 0;
     notifyListeners();
+    _initRealtime();
     loadInitialData();
   }
 
@@ -62,6 +65,8 @@ class AppProvider extends ChangeNotifier {
     _chatMessages.clear();
     _currentIndex = 0;
     _isOnline = true;
+    _activeChatId = null;
+    RealtimeService.instance.disconnect();
     notifyListeners();
   }
 
@@ -131,6 +136,14 @@ class AppProvider extends ChangeNotifier {
           if (!a.isPinned && b.isPinned) return 1;
           return b.lastMessage.timestamp.compareTo(a.lastMessage.timestamp);
         });
+        // One conversation per friend (Snapchat-style): keep the most recent
+        // chat per participant, dropping duplicate 1-on-1 threads.
+        final seen = <String>{};
+        _chats = _chats.where((c) {
+          final key = c.participant.id;
+          if (key.isEmpty) return true;
+          return seen.add(key);
+        }).toList();
       }
     } catch (_) {}
   }
@@ -294,6 +307,88 @@ class AppProvider extends ChangeNotifier {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // REALTIME (Laravel Reverb) — live message delivery + read receipts
+  // ─────────────────────────────────────────────────────────────────────────
+  void _initRealtime() {
+    RealtimeService.instance.onEvent = _onRealtimeEvent;
+    RealtimeService.instance.connect();
+  }
+
+  /// Subscribe to a conversation's private channel while its screen is open.
+  Future<void> subscribeToConversation(String chatId) async {
+    _activeChatId = chatId;
+    await RealtimeService.instance.subscribe('private-conversation.$chatId');
+  }
+
+  Future<void> unsubscribeFromConversation(String chatId) async {
+    if (_activeChatId == chatId) _activeChatId = null;
+    await RealtimeService.instance.unsubscribe('private-conversation.$chatId');
+  }
+
+  void _onRealtimeEvent(String channelName, String eventName, Map<String, dynamic> data) {
+    final convId = channelName.split('.').last;
+    if (eventName == 'MessageSent') {
+      final m = data['message'];
+      if (m is Map) _applyIncomingMessage(convId, Map<String, dynamic>.from(m));
+    } else if (eventName == 'MessageRead') {
+      _applyReadReceipt(convId, data);
+    }
+  }
+
+  void _applyIncomingMessage(String chatId, Map<String, dynamic> json) {
+    final msg = _messageFrom(json, fallbackSender: '');
+    final list = _chatMessages[chatId] ?? [];
+
+    final existing = list.indexWhere((m) => m.id == msg.id);
+    if (existing != -1) {
+      list[existing] = msg;
+    } else {
+      // Replace an optimistic (temp_) echo of my own just-sent message.
+      final temp = list.indexWhere((m) =>
+          m.id.startsWith('temp_') &&
+          m.senderId == msg.senderId &&
+          m.content == msg.content);
+      if (temp != -1) {
+        list[temp] = msg;
+      } else {
+        list.add(msg);
+      }
+    }
+    _chatMessages[chatId] = list;
+
+    final ci = _chats.indexWhere((c) => c.id == chatId);
+    if (ci != -1) {
+      final isMine = msg.senderId == (_currentUser?.id ?? '');
+      final bump = !isMine && _activeChatId != chatId;
+      _chats[ci] = _chats[ci].copyWith(
+        lastMessage: msg,
+        unreadCount: bump ? _chats[ci].unreadCount + 1 : _chats[ci].unreadCount,
+      );
+      _chats.sort((a, b) {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.lastMessage.timestamp.compareTo(a.lastMessage.timestamp);
+      });
+    }
+    notifyListeners();
+  }
+
+  void _applyReadReceipt(String chatId, Map<String, dynamic> data) {
+    final list = _chatMessages[chatId];
+    if (list == null) return;
+    final readerId = '${data['user_id'] ?? ''}';
+    if (readerId == (_currentUser?.id ?? '')) return; // ignore my own read
+    var changed = false;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].senderId == (_currentUser?.id ?? '') && !list[i].isRead) {
+        list[i] = list[i].copyWith(isRead: true, status: MessageStatus.read);
+        changed = true;
+      }
+    }
+    if (changed) notifyListeners();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // MESSAGES
   // ─────────────────────────────────────────────────────────────────────────
   List<MessageModel> getChatMessages(String chatId) {
@@ -301,6 +396,20 @@ class AppProvider extends ChangeNotifier {
   }
 
   /// Loads real message history for a conversation from the backend.
+  /// Upload + send a real media message (photo/video) via the chat API.
+  Future<String?> sendMediaMessage(String chatId, String filePath, {String type = 'image'}) async {
+    final upload = await ChatService().uploadMedia(filePath, type: type);
+    if (!upload.success || upload.data == null) return upload.message ?? 'Upload failed';
+    final d = upload.data!;
+    final mediaUrl = (d['url'] ?? d['media_url'] ?? d['path'] ?? '').toString();
+    if (mediaUrl.isEmpty) return 'Upload returned no media URL';
+    final res = await ChatService().sendMessage(
+      chatId: chatId, content: '', type: type, mediaUrl: mediaUrl);
+    if (!res.success) return res.message ?? 'Could not send media';
+    await loadChatMessages(chatId);
+    return null;
+  }
+
   Future<void> loadChatMessages(String chatId) async {
     try {
       final res = await ChatService().getChatMessages(chatId: chatId);

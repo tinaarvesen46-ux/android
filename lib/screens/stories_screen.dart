@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -33,16 +34,59 @@ class _StoriesScreenState extends State<StoriesScreen> with SingleTickerProvider
   }
 
   Future<void> _createStory() async {
-    final result = await Navigator.push<CameraResult>(
-      context,
-      MaterialPageRoute(builder: (_) => const CameraFirstScreen()),
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: SwiftSnapTheme.surfaceColor,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded, color: SwiftSnapTheme.primaryPurple),
+              title: const Text('Take a photo/video', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
+              onTap: () => Navigator.pop(context, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded, color: SwiftSnapTheme.primaryPink),
+              title: const Text('Photo from library', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
+              onTap: () => Navigator.pop(context, 'image'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.video_library_rounded, color: SwiftSnapTheme.accentGreen),
+              title: const Text('Video from library', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
+              onTap: () => Navigator.pop(context, 'video'),
+            ),
+          ],
+        ),
+      ),
     );
-    if (result == null || !mounted) return;
+    if (choice == null || !mounted) return;
+
+    String? path;
+    bool isVideo = false;
+    if (choice == 'camera') {
+      final result = await Navigator.push<CameraResult>(
+        context,
+        MaterialPageRoute(builder: (_) => const CameraFirstScreen()),
+      );
+      if (result == null) return;
+      path = result.file.path;
+      isVideo = result.isVideo;
+    } else {
+      final picker = ImagePicker();
+      final XFile? file = choice == 'video'
+          ? await picker.pickVideo(source: ImageSource.gallery)
+          : await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (file == null) return;
+      path = file.path;
+      isVideo = choice == 'video';
+    }
+    if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(const SnackBar(content: Text('Uploading to your story…')));
     final err = await context
         .read<AppProvider>()
-        .publishStoryFromFile(result.file.path, isVideo: result.isVideo);
+        .publishStoryFromFile(path, isVideo: isVideo);
     if (!mounted) return;
     messenger.showSnackBar(SnackBar(content: Text(err ?? 'Posted to your story!')));
   }

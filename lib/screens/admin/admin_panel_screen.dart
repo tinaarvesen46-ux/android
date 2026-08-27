@@ -89,7 +89,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   _buildSectionTitle('Recent Activity'),
                   const SizedBox(height: 12),
                   _buildRecentActivity(),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 120),
                 ],
               ),
             ),
@@ -630,89 +630,23 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   Widget _buildRecentActivity() {
-    final items = [
-      _ActivityItem(
-        icon: Icons.person_add_rounded,
-        color: SwiftSnapTheme.primaryPurple,
-        title: '1,240 new users today',
-        subtitle: 'Growing +12% vs yesterday',
-        time: 'Live',
-      ),
-      _ActivityItem(
-        icon: Icons.support_agent_rounded,
-        color: SwiftSnapTheme.primaryBlue,
-        title: '3 tickets need attention',
-        subtitle: '2 high priority, 1 urgent',
-        time: '5m ago',
-      ),
-      _ActivityItem(
-        icon: Icons.flag_rounded,
-        color: SwiftSnapTheme.accentOrange,
-        title: '5 new content reports',
-        subtitle: 'Awaiting moderation review',
-        time: '12m ago',
-      ),
-      _ActivityItem(
-        icon: Icons.email_rounded,
-        color: SwiftSnapTheme.primaryPink,
-        title: 'Campaign "Summer Vibes" sent',
-        subtitle: '89,330 recipients · 24.1% open rate',
-        time: '2h ago',
-      ),
-    ];
-
+    // Honest empty state: the backend does not yet expose a live admin
+    // activity/audit-stream endpoint, so no fabricated activity is shown.
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: SwiftSnapTheme.glassmorphicDecoration(),
       child: Column(
-        children: items.asMap().entries.map((entry) {
-          final i = entry.key;
-          final item = entry.value;
-          return Column(
-            children: [
-              ListTile(
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: item.color.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(SwiftSnapTheme.radiusMd),
-                  ),
-                  child: Icon(item.icon, color: item.color, size: 20),
-                ),
-                title: Text(
-                  item.title,
-                  style: const TextStyle(
-                    color: SwiftSnapTheme.textPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                subtitle: Text(
-                  item.subtitle,
-                  style: const TextStyle(
-                    color: SwiftSnapTheme.textMuted,
-                    fontSize: 11,
-                  ),
-                ),
-                trailing: Text(
-                  item.time,
-                  style: const TextStyle(
-                    color: SwiftSnapTheme.textMuted,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-              if (i < items.length - 1)
-                Divider(
-                  height: 1,
-                  color: Colors.white.withOpacity(0.05),
-                  indent: 72,
-                ),
-            ],
-          );
-        }).toList(),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Icon(Icons.timeline_rounded, color: SwiftSnapTheme.textSecondary),
+          SizedBox(height: 10),
+          Text('No live activity feed yet',
+              style: TextStyle(color: SwiftSnapTheme.textPrimary, fontWeight: FontWeight.w700)),
+          SizedBox(height: 6),
+          Text('A real-time admin activity feed will appear here once the backend exposes an activity/audit stream endpoint.',
+              style: TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 13, height: 1.4)),
+        ],
       ),
     );
   }
