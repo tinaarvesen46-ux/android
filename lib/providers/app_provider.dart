@@ -168,8 +168,18 @@ class AppProvider extends ChangeNotifier {
     );
   }
 
-  Future<List<Map<String, dynamic>>> getGroupParticipants(String chatId) async {
-    final res = await ChatService().getParticipants(chatId);
+  /// Open (or create) the 1:1 conversation with a friend and return it.
+  Future<ChatModel?> openDirectChat(int friendId) async {
+    final res = await ChatService().createDirectChat(friendId);
+    if (!res.success || res.data == null) return null;
+    await _loadChats();
+    notifyListeners();
+    final id = (res.data!['id'] ?? res.data!['uuid'] ?? '').toString();
+    final match = _chats.where((c) => c.id == id).toList();
+    return match.isNotEmpty ? match.first : _chatFromJson(res.data!);
+  }
+
+  Future<List<Map<String, dynamic>>> getGroupParticipants(String chatId) async {    final res = await ChatService().getParticipants(chatId);
     return res.data ?? [];
   }
 

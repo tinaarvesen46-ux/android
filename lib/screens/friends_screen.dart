@@ -6,7 +6,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../theme/theme.dart';
 import '../providers/app_provider.dart';
 import '../models/user_model.dart';
+import '../models/chat_model.dart';
+import '../api/services/user_service.dart';
 import 'friend_requests_screen.dart';
+import 'chat_detail_screen.dart';
+import 'discover_screen.dart';
 
 class FriendsScreen extends StatefulWidget {
   const FriendsScreen({super.key});
@@ -95,7 +99,11 @@ class _FriendsScreenState extends State<FriendsScreen> {
           ),
           const Spacer(),
           IconButton(
-            onPressed: () => HapticFeedback.lightImpact(),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const DiscoverScreen()));
+            },
             icon: const Icon(
               Icons.person_add_rounded,
               color: SwiftSnapTheme.textSecondary,
@@ -280,7 +288,7 @@ class _FriendTile extends StatelessWidget {
         ),
       ),
       child: InkWell(
-        onTap: () => HapticFeedback.lightImpact(),
+        onTap: () => _openChat(context),
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -327,9 +335,56 @@ class _FriendTile extends StatelessWidget {
                   ],
                 ),
               ),
-              _buildMoreButton(),
+              _buildMoreButton(context),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openChat(BuildContext context) async {
+    HapticFeedback.lightImpact();
+    final id = int.tryParse(user.id);
+    if (id == null) return;
+    final chat = await context.read<AppProvider>().openDirectChat(id);
+    if (chat != null && context.mounted) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => ChatDetailScreen(chat: chat)));
+    }
+  }
+
+  void _showActions(BuildContext context) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: SwiftSnapTheme.surfaceColor,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_rounded, color: SwiftSnapTheme.primaryPurple),
+              title: const Text('Message', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
+              onTap: () { Navigator.pop(sheetCtx); _openChat(context); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.block_rounded, color: SwiftSnapTheme.busy),
+              title: Text('Block @${user.username}', style: const TextStyle(color: SwiftSnapTheme.busy)),
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                final id = int.tryParse(user.id);
+                if (id == null) return;
+                final res = await UserService().blockUser(id.toString());
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(res.isSuccess ? 'Blocked @${user.username}' : res.errorMessage),
+                  ));
+                }
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -379,9 +434,9 @@ class _FriendTile extends StatelessWidget {
     );
   }
   
-  Widget _buildMoreButton() {
+  Widget _buildMoreButton(BuildContext context) {
     return GestureDetector(
-      onTap: () => HapticFeedback.lightImpact(),
+      onTap: () => _showActions(context),
       child: Container(
         width: 36,
         height: 36,
