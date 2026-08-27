@@ -11,6 +11,7 @@ import '../api/services/user_service.dart';
 import '../api/services/friend_service.dart';
 import '../api/services/v32_service.dart';
 import '../models/user_model.dart';
+import '../models/friend_request_model.dart';
 
 /// Discover — real people discovery.
 ///
@@ -304,8 +305,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Widget _userTile(UserModel u) {
-    final isFriend =
-        context.watch<AppProvider>().friends.any((f) => f.id == u.id);
+    final provider = context.watch<AppProvider>();
+    final isFriend = provider.friends.any((f) => f.id == u.id);
+    final incoming = provider.friendRequests.where((r) => r.sender.id == u.id).toList();
+    final hasIncoming = incoming.isNotEmpty;
     final requested = _requested.contains(u.id);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -334,18 +337,44 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               ],
             ),
           ),
-          TextButton(
-            onPressed: (isFriend || requested) ? null : () => _addFriend(u),
-            child: Text(
-                isFriend ? 'Friends' : (requested ? 'Requested' : 'Add'),
-                style: TextStyle(
-                    color: isFriend
-                        ? SwiftSnapTheme.online
-                        : (requested ? SwiftSnapTheme.textMuted : SwiftSnapTheme.primaryPurple),
-                    fontWeight: FontWeight.w600)),
-          ),
+          _relationshipAction(u, isFriend: isFriend, hasIncoming: hasIncoming, incoming: incoming, requested: requested),
         ],
       ),
+    );
+  }
+
+  Widget _relationshipAction(
+    UserModel u, {
+    required bool isFriend,
+    required bool hasIncoming,
+    required List<FriendRequestModel> incoming,
+    required bool requested,
+  }) {
+    if (isFriend) {
+      return const Text('Friends',
+          style: TextStyle(color: SwiftSnapTheme.online, fontWeight: FontWeight.w600));
+    }
+    if (hasIncoming) {
+      return TextButton(
+        onPressed: () async {
+          HapticFeedback.lightImpact();
+          final err = await context.read<AppProvider>().acceptFriendRequest(incoming.first.id);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(err == null ? 'You are now friends with @${u.username}' : err)));
+        },
+        child: const Text('Accept',
+            style: TextStyle(color: SwiftSnapTheme.primaryPurple, fontWeight: FontWeight.w700)),
+      );
+    }
+    if (requested) {
+      return const Text('Requested',
+          style: TextStyle(color: SwiftSnapTheme.textMuted, fontWeight: FontWeight.w600));
+    }
+    return TextButton(
+      onPressed: () => _addFriend(u),
+      child: const Text('Add',
+          style: TextStyle(color: SwiftSnapTheme.primaryPurple, fontWeight: FontWeight.w600)),
     );
   }
 }

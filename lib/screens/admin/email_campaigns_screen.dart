@@ -407,7 +407,7 @@ class _EmailCampaignsScreenState extends State<EmailCampaignsScreen>
                             SwiftSnapTheme.radiusMd),
                       ),
                     ),
-                    onPressed: () {},
+                    onPressed: () => _showNewCampaignSheet(),
                   ),
                 ),
                 const SizedBox(width: 10),

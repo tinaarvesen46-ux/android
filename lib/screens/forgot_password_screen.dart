@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../theme/theme.dart';
+import '../api/services/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -58,13 +59,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
     setState(() => _isLoading = true);
-    // TODO: Replace with real API — AuthService.sendPasswordReset(contact)
-    await Future.delayed(const Duration(milliseconds: 1200));
+    final res = await AuthService().forgotPassword(email: val);
     if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-      _step = 2;
-    });
+    setState(() => _isLoading = false);
+    if (!res.isSuccess) {
+      _showError(res.errorMessage.isNotEmpty
+          ? res.errorMessage
+          : 'Could not send a reset code. Please try again.');
+      return;
+    }
+    setState(() => _step = 2);
     _startResendTimer();
   }
 
@@ -89,10 +93,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
     setState(() => _isLoading = true);
-    // TODO: Replace with real API — AuthService.resetPassword(newPassword, token)
-    await Future.delayed(const Duration(milliseconds: 1200));
+    final code = _otpControllers.map((c) => c.text).join();
+    final res = await AuthService().resetPassword(
+      email: _contactController.text.trim(),
+      token: code,
+      password: _newPasswordController.text,
+      passwordConfirmation: _confirmPasswordController.text,
+    );
     if (!mounted) return;
     setState(() => _isLoading = false);
+    if (!res.isSuccess) {
+      _showError(res.errorMessage.isNotEmpty
+          ? res.errorMessage
+          : 'Reset failed. Check the code and try again.');
+      return;
+    }
     _showSuccess();
   }
 

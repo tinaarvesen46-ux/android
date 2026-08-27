@@ -308,6 +308,15 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  void _socialUnavailable(String provider) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$provider Sign-In isn\'t enabled yet'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Widget _buildSocialButtons() {
     return Row(
       children: [
@@ -315,7 +324,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: _buildSocialButton(
             icon: Icons.g_mobiledata_rounded,
             label: 'Google',
-            onTap: () {},
+            onTap: () => _socialUnavailable('Google'),
           ),
         ),
         const SizedBox(width: 16),
@@ -323,7 +332,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: _buildSocialButton(
             icon: Icons.apple_rounded,
             label: 'Apple',
-            onTap: () {},
+            onTap: () => _socialUnavailable('Apple'),
           ),
         ),
       ],

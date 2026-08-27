@@ -10,6 +10,7 @@ import '../providers/app_provider.dart';
 import '../models/story_model.dart';
 import '../widgets/report_dialog.dart';
 import 'camera_first_screen.dart';
+import 'spotlight_screen.dart';
 
 class StoriesScreen extends StatefulWidget {
   const StoriesScreen({super.key});
@@ -355,14 +356,21 @@ class _StoriesScreenState extends State<StoriesScreen> with SingleTickerProvider
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  'Spotlight is coming soon',
+                  'Spotlight',
                   style: TextStyle(color: SwiftSnapTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'A curated feed of trending creator content will appear here once it\'s available on the server.',
+                  'A full-screen feed of public creator stories.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: () => Navigator.push(
+                      context, MaterialPageRoute(builder: (_) => const SpotlightScreen())),
+                  icon: const Icon(Icons.bolt_rounded, size: 18),
+                  label: const Text('Open Spotlight'),
                 ),
               ],
             ),
