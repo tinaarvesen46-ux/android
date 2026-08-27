@@ -1,7 +1,7 @@
 name: darvin_app
 description: SwiftSnap Flutter app
 publish_to: none
-version: 3.0.0+17
+version: 3.1.0+18
 environment:
   sdk: ^3.7.2
 dependencies:
