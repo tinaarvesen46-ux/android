@@ -287,9 +287,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                widget.chat.participant.isOnline
-                                    ? 'Online'
-                                    : widget.chat.participant.lastSeenFormatted,
+                                context.watch<AppProvider>().isTypingIn(widget.chat.id)
+                                    ? 'typing…'
+                                    : (widget.chat.participant.isOnline
+                                        ? 'Online'
+                                        : widget.chat.participant.lastSeenFormatted),
                                 style: TextStyle(
                                   color: widget.chat.participant.isOnline
                                       ? SwiftSnapTheme.online
@@ -464,6 +466,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
                       onChanged: (value) {
                         setState(() => _isTyping = value.isNotEmpty);
                         if (value.isNotEmpty) {
+                          context.read<AppProvider>().sendTyping(widget.chat.id);
                           _sendButtonController.forward();
                         } else {
                           _sendButtonController.reverse();

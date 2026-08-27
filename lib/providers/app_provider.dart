@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../models/chat_model.dart';
@@ -332,7 +333,41 @@ class AppProvider extends ChangeNotifier {
       if (m is Map) _applyIncomingMessage(convId, Map<String, dynamic>.from(m));
     } else if (eventName == 'MessageRead') {
       _applyReadReceipt(convId, data);
+    } else if (eventName == 'client-typing') {
+      final from = '${data['user_id'] ?? ''}';
+      if (from.isNotEmpty && from != (_currentUser?.id ?? '')) {
+        _setTyping(convId);
+      }
     }
+  }
+
+  // ── Typing indicators (Reverb client whispers; throttled, auto-expiring) ──
+  final Map<String, bool> _typing = {};
+  final Map<String, Timer> _typingTimers = {};
+  DateTime _lastTypingSent = DateTime.fromMillisecondsSinceEpoch(0);
+
+  bool isTypingIn(String chatId) => _typing[chatId] == true;
+
+  /// Called as the user types; throttled to one whisper per ~2s.
+  void sendTyping(String chatId) {
+    final now = DateTime.now();
+    if (now.difference(_lastTypingSent).inMilliseconds < 2000) return;
+    _lastTypingSent = now;
+    RealtimeService.instance.whisper(
+      'private-conversation.$chatId',
+      'client-typing',
+      {'user_id': _currentUser?.id ?? ''},
+    );
+  }
+
+  void _setTyping(String chatId) {
+    _typing[chatId] = true;
+    notifyListeners();
+    _typingTimers[chatId]?.cancel();
+    _typingTimers[chatId] = Timer(const Duration(seconds: 4), () {
+      _typing[chatId] = false;
+      notifyListeners();
+    });
   }
 
   void _applyIncomingMessage(String chatId, Map<String, dynamic> json) {
