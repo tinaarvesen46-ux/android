@@ -532,32 +532,27 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   void _processPurchase(SubscriptionPlan plan) {
     showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: SwiftSnapTheme.cardColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Processing Payment...',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-          ],
+        title: const Text(
+          'Checkout unavailable',
+          style: TextStyle(color: Colors.white, fontSize: 18),
         ),
+        content: const Text(
+          'SwiftSnap+ billing is not connected to a payment provider on this account yet, so no charge was made. Your plan selection is saved for when checkout is enabled.',
+          style: TextStyle(color: Colors.white70, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
-
-    Future.delayed(const Duration(seconds: 2), () {
-      Navigator.pop(context);
-      _showSuccessDialog(plan);
-    });
   }
 
   void _showSuccessDialog(SubscriptionPlan plan) {

@@ -91,7 +91,7 @@ class _BackupEncryptionScreenState extends State<BackupEncryptionScreen> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          'Last backup: Today at 3:42 AM',
+                          'Backups run on your set schedule',
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 13,
@@ -192,13 +192,13 @@ class _BackupEncryptionScreenState extends State<BackupEncryptionScreen> {
               ),
               child: Column(
                 children: [
-                  _buildStorageRow('Messages', '245 MB'),
+                  _buildStorageRow('Messages', '—'),
                   const SizedBox(height: 12),
-                  _buildStorageRow('Media Files', '1.2 GB'),
+                  _buildStorageRow('Media Files', '—'),
                   const SizedBox(height: 12),
-                  _buildStorageRow('Documents', '89 MB'),
+                  _buildStorageRow('Documents', '—'),
                   const Divider(color: Colors.white10, height: 24),
-                  _buildStorageRow('Total Backup Size', '1.53 GB', isBold: true),
+                  _buildStorageRow('Total Backup Size', '—', isBold: true),
                 ],
               ),
             ),
