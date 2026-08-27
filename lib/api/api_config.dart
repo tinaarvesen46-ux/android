@@ -69,6 +69,26 @@ class ApiConfig {
   static String deleteStory(String storyId) => '$apiBaseUrl$stories/$storyId';
   static String markStoryViewed(String storyId) => '$apiBaseUrl$stories/$storyId/view';
   static String getStoryViewers(String storyId) => '$apiBaseUrl$stories/$storyId/viewers';
+
+  // ── SwiftSnap v31/v32 endpoints ──
+  static String get publicStories => '$apiBaseUrl$stories/public';
+  static String storyScreenshot(String id) => '$apiBaseUrl$stories/$id/screenshot';
+  static String chatScreenshot(String id) => '$apiBaseUrl$chats/$id/screenshot';
+  static String get creatorEarnings => '$apiBaseUrl/creator/earnings';
+  static String get creatorTransactions => '$apiBaseUrl/creator/earnings/transactions';
+  static String get achievements => '$apiBaseUrl/achievements';
+  static String get deviceRegister => '$apiBaseUrl/devices/register';
+  static String get deviceUnregister => '$apiBaseUrl/devices/unregister';
+  static String get devicesList => '$apiBaseUrl/devices';
+  static String get avatar => '$apiBaseUrl/avatar';
+  static String get avatarReset => '$apiBaseUrl/avatar/reset';
+  static String get callIceServers => '$apiBaseUrl/calls/ice-servers';
+  static String get callsList => '$apiBaseUrl/calls';
+  static String get callInitiate => '$apiBaseUrl/calls';
+  static String callAccept(String uuid) => '$apiBaseUrl/calls/$uuid/accept';
+  static String callDecline(String uuid) => '$apiBaseUrl/calls/$uuid/decline';
+  static String callEnd(String uuid) => '$apiBaseUrl/calls/$uuid/end';
+  static String callSignal(String uuid) => '$apiBaseUrl/calls/$uuid/signal';
   
   // Friend endpoints
   static String get friendsList => '$apiBaseUrl$friends';

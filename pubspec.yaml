@@ -16,7 +16,7 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   shared_preferences: ^2.3.4
   # ── Realtime (self-hosted Laravel Reverb via Pusher protocol, pure Dart) ──
-  web_socket_channel: ^2.4.5
+  web_socket_channel: ^3.0.3
   google_fonts: ^8.2.1
   cached_network_image: ^3.3.1
   flutter_animate: ^4.5.2
