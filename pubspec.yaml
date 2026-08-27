@@ -1,7 +1,7 @@
 name: darvin_app
 description: SwiftSnap Flutter app
 publish_to: none
-version: 2.4.0+11
+version: 2.5.0+12
 environment:
   sdk: ^3.7.2
 dependencies:
@@ -16,7 +16,10 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   shared_preferences: ^2.3.4
   # ── Realtime (Laravel Reverb via Pusher protocol) ──
-  pusher_channels_flutter: ^2.6.0
+  # Pinned to 2.4.x: 2.5.0+ needs js ^0.7.1 which conflicts with
+  # flutter_secure_storage 9.x (js ^0.6.3). 2.4.x has the same Android
+  # init/onAuthorizer API we use (the 2.5.0 fix was Flutter-web only).
+  pusher_channels_flutter: ">=2.4.0 <2.5.0"
   google_fonts: ^8.2.1
   cached_network_image: ^3.3.1
   flutter_animate: ^4.5.2
