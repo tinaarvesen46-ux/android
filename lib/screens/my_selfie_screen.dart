@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import '../theme/theme.dart';
+import '../providers/app_provider.dart';
+import '../api/services/user_service.dart';
 
 class MySelfieScreen extends StatefulWidget {
   const MySelfieScreen({super.key});
@@ -347,12 +351,7 @@ class _MySelfieScreenState extends State<MySelfieScreen> {
               title: 'Take Photo',
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Opening camera...'),
-                    backgroundColor: SwiftSnapTheme.accentGreen,
-                  ),
-                );
+                _pickAndUploadSelfie(ImageSource.camera);
               },
             ),
             const SizedBox(height: 12),
@@ -361,12 +360,7 @@ class _MySelfieScreenState extends State<MySelfieScreen> {
               title: 'Choose from Gallery',
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Opening gallery...'),
-                    backgroundColor: SwiftSnapTheme.accentGreen,
-                  ),
-                );
+                _pickAndUploadSelfie(ImageSource.gallery);
               },
             ),
             const SizedBox(height: 20),
@@ -374,6 +368,32 @@ class _MySelfieScreenState extends State<MySelfieScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _pickAndUploadSelfie(ImageSource source) async {
+    final picker = ImagePicker();
+    final XFile? file = await picker.pickImage(source: source, maxWidth: 1080, imageQuality: 85);
+    if (file == null || !mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: SwiftSnapTheme.primaryPurple)),
+    );
+    final res = await UserService().uploadAvatar(file.path);
+    if (!mounted) return;
+    Navigator.pop(context);
+    if (res.isSuccess) {
+      final d = res.data ?? const {};
+      final url = (d['avatar_url'] ?? d['url'] ?? (d['user'] is Map ? d['user']['avatar_url'] : null))?.toString();
+      if (url != null && url.isNotEmpty) {
+        context.read<AppProvider>().updateUserProfile(avatarUrl: url);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Selfie updated'), behavior: SnackBarBehavior.floating));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res.errorMessage), behavior: SnackBarBehavior.floating));
+    }
   }
 
   Widget _buildCaptureOption({

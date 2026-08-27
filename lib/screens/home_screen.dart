@@ -205,8 +205,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
           ),
           bottomNavigationBar: _buildBottomNavBar(provider),
-          floatingActionButton: _buildCameraFAB(),
-          floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         );
       },
     );
@@ -256,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     navIndex: navIndex,
                     provider: provider,
                   ),
-                  const SizedBox(width: 72),
+                  _buildCameraNavButton(),
                   _buildNavItem(
                     icon: Icons.explore_rounded,
                     label: 'Discover',
@@ -413,47 +411,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
   
-  Widget _buildCameraFAB() {
-    return GestureDetector(
-      onTapDown: (_) => _fabAnimationController.forward(),
-      onTapUp: (_) {
-        _fabAnimationController.reverse();
-        _openCamera();
-      },
-      onTapCancel: () => _fabAnimationController.reverse(),
-      child: AnimatedBuilder(
-        animation: _fabScaleAnimation,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: _fabScaleAnimation.value,
-            child: child,
-          );
-        },
-        child: Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            gradient: SwiftSnapTheme.primaryGradient,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: SwiftSnapTheme.primaryPurple.withOpacity(0.4),
-                blurRadius: 20,
-                spreadRadius: 0,
-                offset: const Offset(0, 4),
+  Widget _buildCameraNavButton() {
+    return Expanded(
+      child: Center(
+        child: GestureDetector(
+          onTapDown: (_) => _fabAnimationController.forward(),
+          onTapUp: (_) {
+            _fabAnimationController.reverse();
+            _openCamera();
+          },
+          onTapCancel: () => _fabAnimationController.reverse(),
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedBuilder(
+            animation: _fabScaleAnimation,
+            builder: (context, child) {
+              return Transform.scale(scale: _fabScaleAnimation.value, child: child);
+            },
+            child: Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                gradient: SwiftSnapTheme.primaryGradient,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: SwiftSnapTheme.primaryPurple.withOpacity(0.4),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              BoxShadow(
-                color: SwiftSnapTheme.primaryPink.withOpacity(0.3),
-                blurRadius: 30,
-                spreadRadius: 0,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.camera_alt_rounded,
-            color: Colors.white,
-            size: 28,
+              child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 26),
+            ),
           ),
         ),
       ),

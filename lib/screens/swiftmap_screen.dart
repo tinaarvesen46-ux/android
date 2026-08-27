@@ -75,10 +75,9 @@ class _SwiftMapScreenState extends State<SwiftMapScreen> {
   }
 
   String _tileUrl() {
-    return _isNight()
-        // CartoDB dark tiles (attribution required, free for personal use up to modest traffic)
-        ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
-        : 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
+    // Keyless OpenStreetMap standard tiles — no API key, no CartoDB "API key
+    // required" gate. Works for all users out of the box.
+    return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   }
 
   @override

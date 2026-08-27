@@ -5,6 +5,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../theme/theme.dart';
 import '../providers/app_provider.dart';
+import 'package:image_picker/image_picker.dart';
+import '../api/services/user_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -363,7 +365,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               label: 'Take Photo',
               onTap: () {
                 Navigator.pop(context);
-                HapticFeedback.mediumImpact();
+                _pickAndUploadAvatar(ImageSource.camera);
               },
             ),
             const SizedBox(height: 12),
@@ -372,17 +374,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               label: 'Choose from Gallery',
               onTap: () {
                 Navigator.pop(context);
-                HapticFeedback.mediumImpact();
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildAvatarOption(
-              icon: Icons.delete_rounded,
-              label: 'Remove Photo',
-              color: SwiftSnapTheme.busy,
-              onTap: () {
-                Navigator.pop(context);
-                HapticFeedback.mediumImpact();
+                _pickAndUploadAvatar(ImageSource.gallery);
               },
             ),
             SizedBox(height: MediaQuery.of(context).padding.bottom),
@@ -390,6 +382,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _pickAndUploadAvatar(ImageSource source) async {
+    final picker = ImagePicker();
+    final XFile? file = await picker.pickImage(source: source, maxWidth: 1080, imageQuality: 85);
+    if (file == null || !mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: SwiftSnapTheme.primaryPurple)),
+    );
+    final res = await UserService().uploadAvatar(file.path);
+    if (!mounted) return;
+    Navigator.pop(context);
+    if (res.isSuccess) {
+      final d = res.data ?? const {};
+      final url = (d['avatar_url'] ?? d['url'] ?? (d['user'] is Map ? d['user']['avatar_url'] : null))?.toString();
+      if (url != null && url.isNotEmpty) {
+        context.read<AppProvider>().updateUserProfile(avatarUrl: url);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Profile photo updated'), behavior: SnackBarBehavior.floating));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res.errorMessage), behavior: SnackBarBehavior.floating));
+    }
   }
   
   Widget _buildAvatarOption({
