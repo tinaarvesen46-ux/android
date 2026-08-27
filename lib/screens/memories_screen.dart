@@ -36,7 +36,6 @@ class MemoriesScreen extends StatelessWidget {
               physics: const BouncingScrollPhysics(),
               slivers: [
                 _buildHeader(context),
-                _buildInfoCard(),
                 if (memories.isEmpty)
                   _buildEmptyState()
                 else
@@ -88,71 +87,10 @@ class MemoriesScreen extends StatelessWidget {
                 ),
               ],
             ),
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: SwiftSnapTheme.surfaceColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
-              ),
-              child: const Icon(Icons.settings_outlined,
-                  color: SwiftSnapTheme.textPrimary, size: 20),
-            ),
+            const SizedBox(width: 40),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildInfoCard() {
-    return SliverToBoxAdapter(
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [
-            SwiftSnapTheme.primaryPurple.withOpacity(0.15),
-            SwiftSnapTheme.primaryPink.withOpacity(0.1),
-          ]),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: SwiftSnapTheme.primaryPurple.withOpacity(0.3)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                gradient: SwiftSnapTheme.primaryGradient,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 32),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Your Special Moments',
-                    style: TextStyle(
-                      color: SwiftSnapTheme.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Relive your favorite stories and memories',
-                    style: TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.2, end: 0),
     );
   }
 

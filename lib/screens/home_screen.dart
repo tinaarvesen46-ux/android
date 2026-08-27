@@ -6,7 +6,7 @@ import '../theme/theme.dart';
 import '../providers/app_provider.dart';
 import '../models/user_model.dart';
 import 'chats_screen.dart';
-import 'stories_screen.dart';
+import 'spotlight_screen.dart';
 import 'camera_first_screen.dart';
 import 'capture_preview_screen.dart';
 import 'call_screen.dart';
@@ -198,7 +198,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             physics: const NeverScrollableScrollPhysics(),
             children: [
               const ChatsScreen(),
-              const StoriesScreen(),
+              const SpotlightScreen(),
               const DiscoverScreen(),
               const ProfileScreen(),
               if (hasSpecial) _buildSpecialTabScreen(provider),
@@ -250,12 +250,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         .fold(0, (sum, c) => sum + c.unreadCount),
                   ),
                   _buildNavItem(
-                    icon: Icons.amp_stories_rounded,
-                    label: 'Stories',
+                    icon: Icons.bolt_rounded,
+                    label: 'Spotlight',
                     index: 1,
                     navIndex: navIndex,
                     provider: provider,
-                    hasNewStory: provider.stories.any((s) => s.hasUnviewed),
                   ),
                   const SizedBox(width: 72),
                   _buildNavItem(

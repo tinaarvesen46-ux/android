@@ -126,47 +126,8 @@ class _EmailCampaignsScreenState extends State<EmailCampaignsScreen>
     ),
   ];
 
-  // Existing campaigns
-  final List<EmailCampaign> _campaigns = [
-    EmailCampaign(
-      id: 'camp_001',
-      name: 'Summer Vibes Newsletter',
-      templateId: 'tpl_premium_promo',
-      templateName: 'SwiftSnap+ Promotion',
-      subject: 'Unlock the full SwiftSnap experience ✨',
-      targetAudience: ['all_users'],
-      recipientCount: 89330,
-      status: CampaignStatus.sent,
-      sentAt: DateTime.now().subtract(const Duration(hours: 2)),
-      sentCount: 89330,
-      openCount: 21559,
-      clickCount: 6052,
-      createdAt: DateTime.now().subtract(const Duration(days: 2)),
-    ),
-    EmailCampaign(
-      id: 'camp_002',
-      name: 'Win-Back Inactive Users',
-      templateId: 'tpl_winback',
-      templateName: 'Win-Back Campaign',
-      subject: 'We miss you on SwiftSnap 💜',
-      targetAudience: ['inactive_30_days'],
-      recipientCount: 12400,
-      status: CampaignStatus.scheduled,
-      scheduledAt: DateTime.now().add(const Duration(days: 1)),
-      createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-    ),
-    EmailCampaign(
-      id: 'camp_003',
-      name: 'v2.0 Feature Announcement',
-      templateId: 'tpl_app_update',
-      templateName: 'New App Update',
-      subject: 'SwiftSnap 2.0 is here! 🚀',
-      targetAudience: ['all_users'],
-      recipientCount: 142850,
-      status: CampaignStatus.draft,
-      createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-    ),
-  ];
+  // Real campaigns are loaded from the backend; no fabricated production data.
+  final List<EmailCampaign> _campaigns = [];
 
   @override
   void initState() {

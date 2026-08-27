@@ -12,6 +12,8 @@ import 'chat_detail_screen.dart';
 import 'camera_first_screen.dart';
 import 'notifications_screen.dart';
 import 'create_group_screen.dart';
+import 'swiftmap_screen.dart';
+import 'stories_screen.dart';
 import '../widgets/report_dialog.dart';
 import '../api/services/user_service.dart';
 
@@ -165,6 +167,20 @@ class _ChatsScreenState extends State<ChatsScreen> with SingleTickerProviderStat
               ),
       ),
       actions: [
+        _buildIconButton(
+          icon: Icons.map_rounded,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const SwiftMapScreen()));
+          },
+        ),
+        _buildIconButton(
+          icon: Icons.amp_stories_rounded,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const StoriesScreen()));
+          },
+        ),
         _buildNotificationBell(),
         _buildIconButton(
           icon: _isSearching ? Icons.close_rounded : Icons.search_rounded,

@@ -779,20 +779,9 @@ class AppProvider extends ChangeNotifier {
 
   // ─────────────────────────────────────────────────────────────────────────
   // FRIEND REQUESTS
+  // (acceptFriendRequest / declineFriendRequest are the canonical async
+  //  implementations declared earlier — they persist to Laravel then reload.)
   // ─────────────────────────────────────────────────────────────────────────
-  void acceptFriendRequest(String requestId) {
-    final index = _friendRequests.indexWhere((r) => r.id == requestId);
-    if (index != -1) {
-      final request = _friendRequests[index];
-      _friendRequests[index] = request.copyWith(status: FriendRequestStatus.accepted);
-      if (!_friends.any((f) => f.id == request.sender.id)) {
-        _friends.add(request.sender);
-      }
-      notifyListeners();
-    }
-    FriendService().acceptFriendRequest(requestId).then((_) {}, onError: (_) {});
-  }
-
   void rejectFriendRequest(String requestId) {
     final index = _friendRequests.indexWhere((r) => r.id == requestId);
     if (index != -1) {

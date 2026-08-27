@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 import '../theme/theme.dart';
+import '../providers/app_provider.dart';
 import '../api/api_config.dart';
 import '../api/api_client.dart';
 import '../api/services/user_service.dart';
@@ -305,13 +307,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final isFriend =
         context.watch<AppProvider>().friends.any((f) => f.id == u.id);
     final requested = _requested.contains(u.id);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: SwiftSnapTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
           CircleAvatar(
