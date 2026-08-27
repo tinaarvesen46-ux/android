@@ -17,6 +17,7 @@ import '../api/services/user_service.dart';
 import '../api/services/friend_service.dart';
 import '../api/services/v32_service.dart';
 import 'call_screen.dart';
+import 'group_info_screen.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final ChatModel chat;
@@ -75,9 +76,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
     _scrollToBottom();
   }
 
+  void _openGroupInfo() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => GroupInfoScreen(chat: widget.chat)),
+    );
+  }
+
+
   Future<void> _startCall(bool video) async {
-    HapticFeedback.mediumImpact();
-    final calleeId = int.tryParse(widget.chat.participant.id);
+    HapticFeedback.mediumImpact();    final calleeId = int.tryParse(widget.chat.participant.id);
     if (calleeId == null) return;
     final conversationId = int.tryParse(widget.chat.id);
     final messenger = ScaffoldMessenger.of(context);
@@ -290,7 +298,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
                   ),
                 ),
                 GestureDetector(
-                  onTap: () => _showProfileSheet(),
+                  onTap: () => widget.chat.isGroup ? _openGroupInfo() : _showProfileSheet(),
                   child: Row(
                     children: [
                       _buildAvatar(),
@@ -302,14 +310,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
                           Row(
                             children: [
                               Text(
-                                widget.chat.participant.displayName,
+                                widget.chat.title,
                                 style: const TextStyle(
                                   color: SwiftSnapTheme.textPrimary,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              if (widget.chat.participant.isVerified) ...[
+                              if (!widget.chat.isGroup && widget.chat.participant.isVerified) ...[
                                 const SizedBox(width: 4),
                                 const Icon(
                                   Icons.verified_rounded,
@@ -320,6 +328,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
                             ],
                           ),
                           const SizedBox(height: 2),
+                          if (widget.chat.isGroup)
+                            Builder(builder: (context) {
+                              final live = context.watch<AppProvider>();
+                              return Text(
+                                live.isTypingIn(widget.chat.id)
+                                    ? 'typing…'
+                                    : '${widget.chat.participants.length + 1} members',
+                                style: const TextStyle(
+                                    color: SwiftSnapTheme.textMuted, fontSize: 12),
+                              );
+                            })
+                          else
                           Builder(builder: (context) {
                             final live = context.watch<AppProvider>();
                             final online = live.isUserOnline(widget.chat.participant.id);
@@ -358,10 +378,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
                   ),
                 ),
                 const Spacer(),
-                _buildHeaderAction(Icons.videocam_rounded,
-                    () => _startCall(true)),
-                _buildHeaderAction(Icons.call_rounded,
-                    () => _startCall(false)),
+                if (widget.chat.isGroup)
+                  _buildHeaderAction(Icons.group_rounded, _openGroupInfo)
+                else ...[
+                  _buildHeaderAction(Icons.videocam_rounded,
+                      () => _startCall(true)),
+                  _buildHeaderAction(Icons.call_rounded,
+                      () => _startCall(false)),
+                ],
                 _buildHeaderAction(Icons.more_vert_rounded, _showChatOptions),
               ],
             ),

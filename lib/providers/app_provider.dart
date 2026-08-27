@@ -132,6 +132,77 @@ class AppProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Accept a pending friend request: persist via Laravel, then refresh friends
+  /// + requests so the relationship state is correct everywhere.
+  Future<String?> acceptFriendRequest(String requestId) async {
+    final res = await FriendService().acceptFriendRequest(requestId);
+    if (!res.isSuccess) return res.errorMessage;
+    _friendRequests.removeWhere((r) => r.id == requestId);
+    notifyListeners();
+    await Future.wait([_loadFriends(), _loadFriendRequests()]);
+    notifyListeners();
+    return null;
+  }
+
+  /// Decline a pending friend request (persist, then drop it locally).
+  Future<String?> declineFriendRequest(String requestId) async {
+    final res = await FriendService().rejectFriendRequest(requestId);
+    if (!res.isSuccess) return res.errorMessage;
+    _friendRequests.removeWhere((r) => r.id == requestId);
+    notifyListeners();
+    return null;
+  }
+
+  // ── GROUPS (real Laravel conversation/group APIs) ──
+
+  /// Create a group and return the new ChatModel (or null on failure).
+  Future<ChatModel?> createGroup(String name, List<int> memberIds) async {
+    final res = await ChatService().createGroup(name, memberIds);
+    if (!res.success || res.data == null) return null;
+    await _loadChats();
+    notifyListeners();
+    final id = (res.data!['id'] ?? res.data!['uuid'] ?? '').toString();
+    return _chats.firstWhere(
+      (c) => c.id == id,
+      orElse: () => _chatFromJson(res.data!) ?? _chats.first,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getGroupParticipants(String chatId) async {
+    final res = await ChatService().getParticipants(chatId);
+    return res.data ?? [];
+  }
+
+  Future<String?> addGroupMember(String chatId, int userId) async {
+    final res = await ChatService().addParticipant(chatId, userId);
+    if (!res.success) return res.message ?? 'Could not add member';
+    return null;
+  }
+
+  Future<String?> removeGroupMember(String chatId, int userId) async {
+    final res = await ChatService().removeParticipant(chatId, userId);
+    if (!res.success) return res.message ?? 'Could not remove member';
+    return null;
+  }
+
+  Future<String?> leaveGroup(String chatId) async {
+    final myId = int.tryParse(_currentUser?.id ?? '');
+    if (myId == null) return 'Not signed in';
+    final res = await ChatService().removeParticipant(chatId, myId);
+    if (!res.success) return res.message ?? 'Could not leave group';
+    _chats.removeWhere((c) => c.id == chatId);
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> renameGroup(String chatId, String name) async {
+    final res = await ChatService().updateGroup(chatId, name: name);
+    if (!res.success) return res.message ?? 'Could not rename group';
+    final i = _chats.indexWhere((c) => c.id == chatId);
+    if (i != -1) { _chats[i] = _chats[i].copyWith(groupName: name); notifyListeners(); }
+    return null;
+  }
+
   Future<void> _loadChats() async {
     try {
       final res = await ChatService().getChats();
@@ -314,20 +385,35 @@ class AppProvider extends ChangeNotifier {
 
   ChatModel? _chatFromJson(Map<String, dynamic> json) {
     final parts = json['other_participants'];
+    final isGroup = (json['type']?.toString() == 'group') || json['is_group'] == true;
     final participant = _userFrom(
       json['participant'] ??
           json['user'] ??
           json['other_user'] ??
           ((parts is List && parts.isNotEmpty) ? parts.first : null),
     );
-    if (participant == null) return null;
+    final resolved = participant ??
+        (isGroup
+            ? _userFrom({'id': (json['id'] ?? '').toString(), 'username': json['name'] ?? 'group', 'display_name': json['name'] ?? 'Group'})
+            : null);
+    if (resolved == null) return null;
+    final members = <UserModel>[];
+    if (parts is List) {
+      for (final p in parts) {
+        final u = _userFrom(p);
+        if (u != null) members.add(u);
+      }
+    }
     final lastMsgJson = json['last_message'] ?? json['lastMessage'];
     return ChatModel(
       id: (json['id'] ?? json['uuid'] ?? '').toString(),
-      participant: participant,
-      lastMessage: _messageFrom(lastMsgJson, fallbackSender: participant.id),
+      participant: resolved,
+      lastMessage: _messageFrom(lastMsgJson, fallbackSender: resolved.id),
       isPinned: json['is_pinned'] == true || json['pinned'] == true,
       isMuted: json['is_muted'] == true,
+      isGroup: isGroup,
+      groupName: isGroup ? (json['name']?.toString()) : null,
+      participants: members,
       unreadCount: (json['unread_count'] ?? json['unreadCount'] ?? 0) is int
           ? (json['unread_count'] ?? json['unreadCount'] ?? 0) as int
           : int.tryParse('${json['unread_count'] ?? json['unreadCount'] ?? 0}') ?? 0,

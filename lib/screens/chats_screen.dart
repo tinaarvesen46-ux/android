@@ -11,6 +11,7 @@ import '../widgets/story_circle.dart';
 import 'chat_detail_screen.dart';
 import 'camera_first_screen.dart';
 import 'notifications_screen.dart';
+import 'create_group_screen.dart';
 import '../widgets/report_dialog.dart';
 import '../api/services/user_service.dart';
 
@@ -762,6 +763,35 @@ class _NewChatSheet extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: GestureDetector(
+              key: const Key('new-group-btn'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CreateGroupScreen()),
+                );
+              },
+              child: Row(
+                children: [
+                  Container(
+                    width: 44, height: 44,
+                    decoration: const BoxDecoration(
+                        gradient: SwiftSnapTheme.primaryGradient, shape: BoxShape.circle),
+                    child: const Icon(Icons.group_add_rounded, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 14),
+                  const Text('New Group',
+                      style: TextStyle(
+                          color: SwiftSnapTheme.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700)),
+                ],
+              ),
             ),
           ),
           Padding(

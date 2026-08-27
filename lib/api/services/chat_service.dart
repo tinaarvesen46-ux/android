@@ -36,6 +36,50 @@ class ChatService {
     );
   }
   
+  /// Create a group conversation. POST /chats {type:group, name, participant_ids}.
+  Future<ApiResponse<Map<String, dynamic>>> createGroup(String name, List<int> memberIds) async {
+    return await _client.post(
+      ApiConfig.chatsList,
+      data: {'type': 'group', 'name': name, 'participant_ids': memberIds},
+      fromJson: (data) => data as Map<String, dynamic>,
+    );
+  }
+
+  /// List group participants. GET /chats/{id}/participants.
+  Future<ApiResponse<List<Map<String, dynamic>>>> getParticipants(String chatId) async {
+    return await _client.get<List<Map<String, dynamic>>>(
+      '${ApiConfig.chatsList}/$chatId/participants',
+      fromJson: (data) {
+        if (data is List) return data.cast<Map<String, dynamic>>();
+        if (data is Map && data['data'] is List) return (data['data'] as List).cast<Map<String, dynamic>>();
+        return <Map<String, dynamic>>[];
+      },
+    );
+  }
+
+  /// Add a member. POST /chats/{id}/participants {user_id, role}.
+  Future<ApiResponse<Map<String, dynamic>>> addParticipant(String chatId, int userId) async {
+    return await _client.post(
+      '${ApiConfig.chatsList}/$chatId/participants',
+      data: {'user_id': userId, 'role': 'member'},
+      fromJson: (data) => data as Map<String, dynamic>,
+    );
+  }
+
+  /// Remove a member (or leave, when removing yourself).
+  Future<ApiResponse<void>> removeParticipant(String chatId, int userId) async {
+    return await _client.delete('${ApiConfig.chatsList}/$chatId/participants/$userId');
+  }
+
+  /// Rename / update a group. PUT /chats/{id} {name}.
+  Future<ApiResponse<Map<String, dynamic>>> updateGroup(String chatId, {String? name}) async {
+    return await _client.put(
+      '${ApiConfig.chatsList}/$chatId',
+      data: {if (name != null) 'name': name},
+      fromJson: (data) => data as Map<String, dynamic>,
+    );
+  }
+
   /// Get chat by ID
   Future<ApiResponse<Map<String, dynamic>>> getChatById(String chatId) async {    return await _client.get(
       ApiConfig.getChatById(chatId),

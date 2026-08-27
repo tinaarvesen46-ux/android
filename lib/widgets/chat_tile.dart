@@ -133,7 +133,7 @@ class ChatTile extends StatelessWidget {
           children: [
             Flexible(
               child: Text(
-                chat.participant.displayName,
+                chat.title,
                 style: TextStyle(
                   color: SwiftSnapTheme.textPrimary,
                   fontSize: 16,
@@ -143,7 +143,7 @@ class ChatTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (chat.participant.isVerified) ...[
+            if (!chat.isGroup && chat.participant.isVerified) ...[
               const SizedBox(width: 4),
               const Icon(
                 Icons.verified_rounded,

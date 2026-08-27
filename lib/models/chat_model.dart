@@ -105,6 +105,9 @@ class ChatModel {
   final bool disappearingEnabled;
   final int? disappearingDuration;
   final bool screenshotDisabled;
+  final bool isGroup;
+  final String? groupName;
+  final List<UserModel> participants;
   
   const ChatModel({
     required this.id,
@@ -116,7 +119,15 @@ class ChatModel {
     this.disappearingEnabled = false,
     this.disappearingDuration,
     this.screenshotDisabled = false,
+    this.isGroup = false,
+    this.groupName,
+    this.participants = const [],
   });
+
+  /// Display title: group name for groups, otherwise the 1:1 participant name.
+  String get title => isGroup
+      ? (groupName?.isNotEmpty == true ? groupName! : 'Group')
+      : participant.displayName;
   
   ChatModel copyWith({
     String? id,
@@ -128,6 +139,9 @@ class ChatModel {
     bool? disappearingEnabled,
     int? disappearingDuration,
     bool? screenshotDisabled,
+    bool? isGroup,
+    String? groupName,
+    List<UserModel>? participants,
   }) {
     return ChatModel(
       id: id ?? this.id,
@@ -139,6 +153,9 @@ class ChatModel {
       disappearingEnabled: disappearingEnabled ?? this.disappearingEnabled,
       disappearingDuration: disappearingDuration ?? this.disappearingDuration,
       screenshotDisabled: screenshotDisabled ?? this.screenshotDisabled,
+      isGroup: isGroup ?? this.isGroup,
+      groupName: groupName ?? this.groupName,
+      participants: participants ?? this.participants,
     );
   }
 }

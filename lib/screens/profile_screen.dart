@@ -17,6 +17,7 @@ import 'blocked_users_screen.dart';
 import 'help_support_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'achievements_screen.dart';
+import 'avatar_studio_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -633,6 +634,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const AchievementsScreen(),
+                ),
+              );
+            },
+          ),
+          _SettingsItem(
+            icon: Icons.face_retouching_natural_rounded,
+            label: 'Avatar Studio',
+            subtitle: 'Create your SwiftSnap avatar',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AvatarStudioScreen(),
                 ),
               );
             },

@@ -302,6 +302,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Widget _userTile(UserModel u) {
+    final isFriend =
+        context.watch<AppProvider>().friends.any((f) => f.id == u.id);
     final requested = _requested.contains(u.id);
     return Container(
       padding: const EdgeInsets.all(12),
@@ -336,10 +338,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ),
           ),
           TextButton(
-            onPressed: requested ? null : () => _addFriend(u),
-            child: Text(requested ? 'Requested' : 'Add',
+            onPressed: (isFriend || requested) ? null : () => _addFriend(u),
+            child: Text(
+                isFriend ? 'Friends' : (requested ? 'Requested' : 'Add'),
                 style: TextStyle(
-                    color: requested ? SwiftSnapTheme.textMuted : SwiftSnapTheme.primaryPurple,
+                    color: isFriend
+                        ? SwiftSnapTheme.online
+                        : (requested ? SwiftSnapTheme.textMuted : SwiftSnapTheme.primaryPurple),
                     fontWeight: FontWeight.w600)),
           ),
         ],
