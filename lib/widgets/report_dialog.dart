@@ -111,67 +111,82 @@ class _ReportDialogState extends State<ReportDialog> {
     return Dialog(
       backgroundColor: SwiftSnapTheme.surfaceColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Report ${widget.targetLabel}',
-                style: const TextStyle(
-                    color: SwiftSnapTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            const Text('Tell us what\'s wrong. Reports are confidential.',
-                style: TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 13)),
-            const SizedBox(height: 16),
-            ..._reasons.entries.map((e) => RadioListTile<String>(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  activeColor: SwiftSnapTheme.primaryPurple,
-                  title: Text(e.value, style: const TextStyle(color: SwiftSnapTheme.textPrimary, fontSize: 14)),
-                  value: e.key,
-                  groupValue: _reason,
-                  onChanged: (v) => setState(() => _reason = v),
-                )),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _details,
-              maxLines: 3,
-              maxLength: 2000,
-              style: const TextStyle(color: SwiftSnapTheme.textPrimary),
-              decoration: InputDecoration(
-                hintText: 'Add details (optional)',
-                hintStyle: const TextStyle(color: SwiftSnapTheme.textSecondary),
-                filled: true,
-                fillColor: SwiftSnapTheme.backgroundDark,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Report ${widget.targetLabel}',
+                  style: const TextStyle(
+                      color: SwiftSnapTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              const Text('Tell us what\'s wrong. Reports are confidential.',
+                  style: TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 13)),
+              const SizedBox(height: 16),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ..._reasons.entries.map((e) => RadioListTile<String>(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            activeColor: SwiftSnapTheme.primaryPurple,
+                            title: Text(e.value, style: const TextStyle(color: SwiftSnapTheme.textPrimary, fontSize: 14)),
+                            value: e.key,
+                            groupValue: _reason,
+                            onChanged: (v) => setState(() => _reason = v),
+                          )),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _details,
+                        maxLines: 3,
+                        maxLength: 2000,
+                        style: const TextStyle(color: SwiftSnapTheme.textPrimary),
+                        decoration: InputDecoration(
+                          hintText: 'Add details (optional)',
+                          hintStyle: const TextStyle(color: SwiftSnapTheme.textSecondary),
+                          filled: true,
+                          fillColor: SwiftSnapTheme.backgroundDark,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: _submitting ? null : () => Navigator.pop(context),
-                  child: const Text('Cancel', style: TextStyle(color: SwiftSnapTheme.textSecondary)),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: SwiftSnapTheme.busy,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _submitting ? null : () => Navigator.pop(context),
+                    child: const Text('Cancel', style: TextStyle(color: SwiftSnapTheme.textSecondary)),
                   ),
-                  onPressed: (_reason == null || _submitting) ? null : _submit,
-                  child: _submitting
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Submit Report', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: SwiftSnapTheme.busy,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: (_reason == null || _submitting) ? null : _submit,
+                    child: _submitting
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text('Submit Report', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

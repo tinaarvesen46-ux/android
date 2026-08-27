@@ -5,10 +5,11 @@ import 'dart:ui';
 import '../theme/theme.dart';
 import '../providers/app_provider.dart';
 import '../models/user_model.dart';
-import '../api/services/story_service.dart';
 import 'chats_screen.dart';
 import 'stories_screen.dart';
 import 'camera_first_screen.dart';
+import 'capture_preview_screen.dart';
+import 'call_screen.dart';
 import 'discover_screen.dart';
 import 'profile_screen.dart';
 import 'admin/admin_panel_screen.dart';
@@ -27,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late final PageController _pageController;
   late final AnimationController _fabAnimationController;
   late final Animation<double> _fabScaleAnimation;
+  String? _incomingUuid;
   
   @override
   void initState() {
@@ -152,49 +154,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
     );
     if (result != null && mounted) {
-      await _uploadCapturedStory(result);
-    }
-  }
-
-  /// Camera capture → media/upload → stories (create) → refresh provider.
-  Future<void> _uploadCapturedStory(CameraResult result) async {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(const SnackBar(
-      content: Text('Uploading to your story…'),
-      duration: Duration(seconds: 2),
-    ));
-    try {
-      final storyService = StoryService();
-      final type = result.isVideo ? 'video' : 'image';
-      final upload = await storyService.uploadStoryMedia(result.file.path, type: type);
-      if (!upload.success || upload.data == null) {
-        messenger.showSnackBar(SnackBar(content: Text('Upload failed: ${upload.message ?? 'unknown error'}')));
-        return;
-      }
-      final mediaUrl = (upload.data!['url'] ?? upload.data!['media_url'] ?? upload.data!['path'] ?? '').toString();
-      final mediaId = (upload.data!['id'] ?? upload.data!['media_id'] ?? '').toString();
-      if (mediaUrl.isEmpty) {
-        messenger.showSnackBar(const SnackBar(content: Text('Upload succeeded but no media URL was returned.')));
-        return;
-      }
-      final created = await storyService.createStory(mediaUrl: mediaUrl, type: type, mediaId: mediaId.isEmpty ? null : mediaId);
-      if (!created.success) {
-        messenger.showSnackBar(SnackBar(content: Text('Could not post story: ${created.message ?? 'error'}')));
-        return;
-      }
-      if (mounted) {
-        await Provider.of<AppProvider>(context, listen: false).refresh();
-        messenger.showSnackBar(const SnackBar(content: Text('Posted to your story!')));
-      }
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Upload error: $e')));
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => CapturePreviewScreen(result: result)),
+      );
     }
   }
   
+  void _maybeShowIncomingCall(AppProvider provider) {
+    final call = provider.incomingCall;
+    if (call == null) return;
+    final uuid = (call['uuid'] ?? '').toString();
+    if (uuid.isEmpty || _incomingUuid == uuid) return;
+    _incomingUuid = uuid;
+    final type = (call['type'] ?? 'audio').toString();
+    final caller = call['caller'];
+    final name = caller is Map ? (caller['username'] ?? 'Caller').toString() : 'Caller';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context)
+          .push(MaterialPageRoute(
+            builder: (_) => CallScreen(
+              callUuid: uuid,
+              isCaller: false,
+              isVideo: type == 'video',
+              peerName: name,
+              incoming: true,
+            ),
+          ))
+          .then((_) => _incomingUuid = null);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<AppProvider>(
       builder: (context, provider, _) {
+        _maybeShowIncomingCall(provider);
         final hasSpecial = _hasSpecialTab(provider);
         return Scaffold(
           extendBody: true,

@@ -3,14 +3,20 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:ui';
+import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:video_player/video_player.dart';
 import '../theme/theme.dart';
 import '../models/chat_model.dart';
 import '../models/user_model.dart';
 import '../providers/app_provider.dart';
 import '../widgets/report_dialog.dart';
+import '../api/api_client.dart';
 import '../api/services/user_service.dart';
 import '../api/services/friend_service.dart';
+import '../api/services/v32_service.dart';
+import 'call_screen.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final ChatModel chat;
@@ -69,27 +75,58 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
     _scrollToBottom();
   }
 
-  void _comingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature isn\'t available yet')),
+  Future<void> _startCall(bool video) async {
+    HapticFeedback.mediumImpact();
+    final calleeId = int.tryParse(widget.chat.participant.id);
+    if (calleeId == null) return;
+    final conversationId = int.tryParse(widget.chat.id);
+    final messenger = ScaffoldMessenger.of(context);
+    final res = await SwiftSnapV32Service().initiateCall(
+      calleeId: calleeId,
+      type: video ? 'video' : 'audio',
+      conversationId: conversationId,
     );
+    if (!mounted) return;
+    if (!res.success || res.data == null) {
+      messenger.showSnackBar(SnackBar(content: Text(res.message ?? 'Could not start call')));
+      return;
+    }
+    final uuid = (res.data!['uuid'] ?? '').toString();
+    if (uuid.isEmpty) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => CallScreen(
+        callUuid: uuid,
+        isCaller: true,
+        isVideo: video,
+        peerName: widget.chat.participant.displayName,
+      ),
+    ));
   }
 
   Future<void> _pickAndSendMedia() async {
     final source = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: SwiftSnapTheme.surfaceColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_rounded, color: SwiftSnapTheme.primaryPurple),
+              leading: const Icon(Icons.camera_alt_rounded, color: SwiftSnapTheme.primaryPurple),
+              title: const Text('Take a photo', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
+              subtitle: const Text('Snap & send directly', style: TextStyle(color: SwiftSnapTheme.textMuted, fontSize: 12)),
+              onTap: () => Navigator.pop(context, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_rounded, color: SwiftSnapTheme.primaryPink),
               title: const Text('Photo from library', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
               onTap: () => Navigator.pop(context, 'image'),
             ),
             ListTile(
-              leading: const Icon(Icons.videocam_rounded, color: SwiftSnapTheme.primaryPink),
+              leading: const Icon(Icons.videocam_rounded, color: SwiftSnapTheme.busy),
               title: const Text('Video from library', style: TextStyle(color: SwiftSnapTheme.textPrimary)),
               onTap: () => Navigator.pop(context, 'video'),
             ),
@@ -99,17 +136,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
     );
     if (source == null || !mounted) return;
     final picker = ImagePicker();
-    final XFile? file = source == 'video'
-        ? await picker.pickVideo(source: ImageSource.gallery)
-        : await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    XFile? file;
+    String type = 'image';
+    try {
+      if (source == 'camera') {
+        file = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+      } else if (source == 'video') {
+        file = await picker.pickVideo(source: ImageSource.gallery);
+        type = 'video';
+      } else {
+        file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      }
+    } catch (_) {}
     if (file == null || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(const SnackBar(content: Text('Uploading media…')));
+    // Optimistic pending bubble is shown by the provider; only surface errors.
     final err = await context
         .read<AppProvider>()
-        .sendMediaMessage(widget.chat.id, file.path, type: source);
+        .sendMediaMessage(widget.chat.id, file.path, type: type);
     if (!mounted) return;
-    messenger.showSnackBar(SnackBar(content: Text(err ?? 'Media sent')));
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+    }
     _scrollToBottom();
   }
 
@@ -309,9 +356,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
                 ),
                 const Spacer(),
                 _buildHeaderAction(Icons.videocam_rounded,
-                    () => _comingSoon('Video calling')),
+                    () => _startCall(true)),
                 _buildHeaderAction(Icons.call_rounded,
-                    () => _comingSoon('Voice calling')),
+                    () => _startCall(false)),
                 _buildHeaderAction(Icons.more_vert_rounded, _showChatOptions),
               ],
             ),
@@ -386,6 +433,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with TickerProvider
               isMe: isMe,
               showAvatar: showAvatar,
               participant: widget.chat.participant,
+              chatId: widget.chat.id,
             ).animate(delay: Duration(milliseconds: 30 * index))
               .fadeIn(duration: 200.ms)
               .slideY(begin: 0.1, end: 0);
@@ -535,13 +583,90 @@ class _MessageBubble extends StatelessWidget {
   final bool isMe;
   final bool showAvatar;
   final UserModel participant;
+  final String chatId;
   
   const _MessageBubble({
     required this.message,
     required this.isMe,
     required this.showAvatar,
     required this.participant,
+    required this.chatId,
   });
+
+  bool get _hasMedia =>
+      (message.type == MessageType.image || message.type == MessageType.video) &&
+      (message.mediaUrl != null && message.mediaUrl!.isNotEmpty);
+
+  Widget _buildMedia(BuildContext context) {
+    final url = message.mediaUrl!;
+    final isLocal = !url.startsWith('http');
+    final w = MediaQuery.of(context).size.width * 0.62;
+    Widget child;
+    if (message.type == MessageType.video) {
+      child = GestureDetector(
+        onTap: isLocal ? null : () => _openVideo(context, url),
+        child: Container(
+          width: w,
+          height: w * 1.1,
+          color: Colors.black26,
+          child: const Center(
+            child: Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 54),
+          ),
+        ),
+      );
+    } else if (isLocal) {
+      child = Image.file(File(url), width: w, fit: BoxFit.cover);
+    } else {
+      child = CachedNetworkImage(
+        imageUrl: url,
+        httpHeaders: {'Authorization': 'Bearer ${ApiClient.currentToken ?? ''}'},
+        width: w,
+        fit: BoxFit.cover,
+        placeholder: (c, _) => Container(
+          width: w, height: w,
+          color: Colors.black26,
+          child: const Center(
+            child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+        ),
+        errorWidget: (c, _, __) => Container(
+          width: w, height: w,
+          color: Colors.black26,
+          child: const Icon(Icons.broken_image_rounded, color: Colors.white54),
+        ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Stack(
+        children: [
+          child,
+          if (message.status == MessageStatus.sending)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x66000000),
+                child: Center(
+                  child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                ),
+              ),
+            ),
+          if (message.status == MessageStatus.failed)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x88000000),
+                child: Center(child: Icon(Icons.error_outline_rounded, color: Colors.white, size: 34)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _openVideo(BuildContext context, String url) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _VideoPlayerScreen(url: url),
+    ));
+  }
   
   @override
   Widget build(BuildContext context) {
@@ -594,16 +719,30 @@ class _MessageBubble extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      message.content,
-                      style: TextStyle(
-                        color: isMe 
-                            ? Colors.white 
-                            : SwiftSnapTheme.textPrimary,
-                        fontSize: 15,
-                        height: 1.4,
+                    if (_hasMedia) ...[
+                      _buildMedia(context),
+                      if (message.content.isNotEmpty) const SizedBox(height: 6),
+                    ],
+                    if (message.content.isNotEmpty)
+                      Text(
+                        message.content,
+                        style: TextStyle(
+                          color: isMe
+                              ? Colors.white
+                              : SwiftSnapTheme.textPrimary,
+                          fontSize: 15,
+                          height: 1.4,
+                        ),
                       ),
-                    ),
+                    if (message.reactions.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 2,
+                        children: message.reactions
+                            .map((r) => Text(r.emoji, style: const TextStyle(fontSize: 15)))
+                            .toList(),
+                      ),
+                    ],
                     const SizedBox(height: 4),
                     Row(
                       mainAxisSize: MainAxisSize.min,
@@ -663,6 +802,7 @@ class _MessageBubble extends StatelessWidget {
               .map((emoji) => GestureDetector(
                     onTap: () {
                       HapticFeedback.lightImpact();
+                      context.read<AppProvider>().reactToMessage(chatId, message.id, emoji);
                       Navigator.pop(context);
                     },
                     child: Text(
@@ -673,6 +813,62 @@ class _MessageBubble extends StatelessWidget {
               .toList(),
         ),
       ),
+    );
+  }
+}
+
+/// Minimal full-screen player for chat video messages (authed stream URL).
+class _VideoPlayerScreen extends StatefulWidget {
+  final String url;
+  const _VideoPlayerScreen({required this.url});
+  @override
+  State<_VideoPlayerScreen> createState() => _VideoPlayerScreenState();
+}
+
+class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
+  VideoPlayerController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(
+      Uri.parse(widget.url),
+      httpHeaders: {'Authorization': 'Bearer ${ApiClient.currentToken ?? ''}'},
+    )..initialize().then((_) {
+        if (mounted) {
+          setState(() {});
+          _controller?.play();
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _controller;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Center(
+        child: (c != null && c.value.isInitialized)
+            ? AspectRatio(aspectRatio: c.value.aspectRatio, child: VideoPlayer(c))
+            : const CircularProgressIndicator(color: Colors.white),
+      ),
+      floatingActionButton: (c != null && c.value.isInitialized)
+          ? FloatingActionButton(
+              backgroundColor: SwiftSnapTheme.primaryPurple,
+              onPressed: () => setState(() => c.value.isPlaying ? c.pause() : c.play()),
+              child: Icon(c.value.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
+            )
+          : null,
     );
   }
 }
@@ -765,22 +961,7 @@ class _ProfileSheet extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: GestureDetector(
-                    onTap: () async {
-                      final res = await FriendService().sendFriendRequest(user.id);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(res.isSuccess
-                                ? 'Friend request sent to @${user.username}'
-                                : res.errorMessage)));
-                      }
-                    },
-                    child: _buildActionButton(
-                      icon: Icons.person_add_outlined,
-                      label: 'Add Friend',
-                      isPrimary: true,
-                    ),
-                  ),
+                  child: _FriendActionButton(user: user),
                 ),
                 const SizedBox(width: 12),
                 GestureDetector(
@@ -853,40 +1034,6 @@ class _ProfileSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    bool isPrimary = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        gradient: isPrimary ? SwiftSnapTheme.primaryGradient : null,
-        color: isPrimary ? null : SwiftSnapTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            color: isPrimary ? Colors.white : SwiftSnapTheme.textSecondary,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: isPrimary ? Colors.white : SwiftSnapTheme.textSecondary,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  
   Widget _buildIconAction(IconData icon) {
     return Container(
       width: 48,
@@ -923,6 +1070,94 @@ class _ProfileSheet extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+
+/// Relationship-aware action button in the chat profile sheet. Shows "Friends"
+/// (disabled) when already connected, otherwise "Add Friend" which sends a real
+/// request and flips to "Requested". Truthful state — no hardcoded label.
+class _FriendActionButton extends StatefulWidget {
+  final UserModel user;
+  const _FriendActionButton({required this.user});
+  @override
+  State<_FriendActionButton> createState() => _FriendActionButtonState();
+}
+
+class _FriendActionButtonState extends State<_FriendActionButton> {
+  bool _requested = false;
+  bool _sending = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<AppProvider>();
+    final isFriend = provider.friends.any((f) => f.id == widget.user.id);
+
+    late final IconData icon;
+    late final String label;
+    late final bool isPrimary;
+    VoidCallback? onTap;
+
+    if (isFriend) {
+      icon = Icons.check_rounded;
+      label = 'Friends';
+      isPrimary = false;
+      onTap = null;
+    } else if (_requested) {
+      icon = Icons.hourglass_top_rounded;
+      label = 'Requested';
+      isPrimary = false;
+      onTap = null;
+    } else {
+      icon = Icons.person_add_outlined;
+      label = 'Add Friend';
+      isPrimary = true;
+      onTap = _sending
+          ? null
+          : () async {
+              setState(() => _sending = true);
+              final res = await FriendService().sendFriendRequest(widget.user.id);
+              if (!mounted) return;
+              setState(() {
+                _sending = false;
+                _requested = res.isSuccess;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(res.isSuccess
+                      ? 'Friend request sent to @${widget.user.username}'
+                      : res.errorMessage)));
+            };
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          gradient: isPrimary ? SwiftSnapTheme.primaryGradient : null,
+          color: isPrimary ? null : SwiftSnapTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _sending
+                ? const SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : Icon(icon,
+                    color: isPrimary ? Colors.white : SwiftSnapTheme.textSecondary, size: 20),
+            const SizedBox(width: 8),
+            Text(label,
+                style: TextStyle(
+                  color: isPrimary ? Colors.white : SwiftSnapTheme.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                )),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -9,6 +9,7 @@ import '../api/services/friend_service.dart';
 import '../api/services/story_service.dart';
 import '../api/services/notification_service.dart';
 import '../api/services/realtime_service.dart';
+import '../api/api_config.dart';
 
 class AppProvider extends ChangeNotifier {
   int _currentIndex = 0;
@@ -239,13 +240,53 @@ class AppProvider extends ChangeNotifier {
         timestamp: DateTime.now(),
       );
     }
+    // Media: the backend returns a `media` array; each item exposes a `uuid`
+    // that streams through GET /media/message/{uuid} (auth-gated). Build the
+    // absolute, token-authenticated URL clients render.
+    String? mediaUrl;
+    final media = json['media'];
+    if (media is List && media.isNotEmpty && media.first is Map) {
+      final uuid = (media.first['uuid'] ?? '').toString();
+      if (uuid.isNotEmpty) mediaUrl = '${ApiConfig.apiBaseUrl}/media/message/$uuid';
+    }
+    mediaUrl ??= (json['media_url'] ?? json['mediaUrl'])?.toString();
+
+    // Reactions
+    final reactions = <MessageReaction>[];
+    final rx = json['reactions'];
+    if (rx is List) {
+      for (final r in rx) {
+        if (r is Map) {
+          final e = (r['emoji'] ?? r['reaction'] ?? '').toString();
+          if (e.isNotEmpty) {
+            reactions.add(MessageReaction(
+              emoji: e,
+              userId: (r['user_id'] ?? r['userId'] ?? '').toString(),
+              timestamp: _dateFrom(r['created_at']),
+            ));
+          }
+        }
+      }
+    }
+
+    final readAt = json['read_at'];
+    final deliveredAt = json['delivered_at'];
+    final status = (readAt != null && '$readAt'.isNotEmpty)
+        ? MessageStatus.read
+        : (deliveredAt != null && '$deliveredAt'.isNotEmpty)
+            ? MessageStatus.delivered
+            : MessageStatus.sent;
+
     return MessageModel(
       id: (json['id'] ?? json['uuid'] ?? '').toString(),
       senderId: (json['sender_id'] ?? json['senderId'] ?? fallbackSender).toString(),
       content: (json['content'] ?? json['text'] ?? '').toString(),
       timestamp: _dateFrom(json['timestamp'] ?? json['created_at'] ?? json['createdAt']),
       type: _messageTypeFrom(json['type']?.toString()),
-      isRead: json['is_read'] == true || json['read'] == true,
+      isRead: readAt != null && '$readAt'.isNotEmpty,
+      status: status,
+      mediaUrl: mediaUrl,
+      reactions: reactions,
     );
   }
 
@@ -313,7 +354,34 @@ class AppProvider extends ChangeNotifier {
   void _initRealtime() {
     RealtimeService.instance.onEvent = _onRealtimeEvent;
     RealtimeService.instance.connect();
+    // Ring on incoming calls even before opening any chat: listen on my own
+    // private user channel.
+    final myId = _currentUser?.id;
+    if (myId != null && myId.isNotEmpty) {
+      RealtimeService.instance.subscribe('private-user.$myId');
+    }
   }
+
+  // ── Calling: incoming ring + per-call signaling routing ──
+  Map<String, dynamic>? _incomingCall;
+  Map<String, dynamic>? get incomingCall => _incomingCall;
+  void Function(String kind, Map<String, dynamic> data)? _callSignalHandler;
+
+  void registerCallSignalHandler(void Function(String, Map<String, dynamic>) h) {
+    _callSignalHandler = h;
+  }
+
+  void clearCallSignalHandler() => _callSignalHandler = null;
+
+  void clearIncomingCall() {
+    _incomingCall = null;
+    notifyListeners();
+  }
+
+  Future<void> subscribeToCall(String uuid) =>
+      RealtimeService.instance.subscribe('private-call.$uuid');
+  Future<void> unsubscribeFromCall(String uuid) =>
+      RealtimeService.instance.unsubscribe('private-call.$uuid');
 
   /// Subscribe to a conversation's private channel while its screen is open.
   Future<void> subscribeToConversation(String chatId) async {
@@ -338,6 +406,20 @@ class AppProvider extends ChangeNotifier {
       if (from.isNotEmpty && from != (_currentUser?.id ?? '')) {
         _setTyping(convId);
       }
+    } else if (eventName == 'CallInitiated') {
+      final call = data['call'];
+      if (call is Map) {
+        _incomingCall = Map<String, dynamic>.from(call);
+        notifyListeners();
+      }
+    } else if (eventName == 'CallSignal') {
+      final from = '${data['from'] ?? ''}';
+      if (from == (_currentUser?.id ?? '')) return; // ignore my own echoes
+      final kind = (data['kind'] ?? '').toString();
+      final payload = data['data'] is Map
+          ? Map<String, dynamic>.from(data['data'])
+          : <String, dynamic>{};
+      _callSignalHandler?.call(kind, payload);
     }
   }
 
@@ -431,25 +513,69 @@ class AppProvider extends ChangeNotifier {
   }
 
   /// Loads real message history for a conversation from the backend.
-  /// Upload + send a real media message (photo/video) via the chat API.
+  /// Upload + send a real media message (photo/video) in a SINGLE multipart
+  /// request to POST /chats/{id}/messages. Shows an optimistic pending bubble
+  /// immediately; on success it is replaced by the server message (with media),
+  /// on failure it is marked failed so the UI can offer a retry. Returns null
+  /// on success or a human error string on failure.
   Future<String?> sendMediaMessage(String chatId, String filePath, {String type = 'image'}) async {
-    final upload = await ChatService().uploadMedia(filePath, type: type);
-    if (!upload.success || upload.data == null) return upload.message ?? 'Upload failed';
-    final d = upload.data!;
-    final mediaUrl = (d['url'] ?? d['media_url'] ?? d['path'] ?? '').toString();
-    if (mediaUrl.isEmpty) return 'Upload returned no media URL';
-    final res = await ChatService().sendMessage(
-      chatId: chatId, content: '', type: type, mediaUrl: mediaUrl);
-    if (!res.success) return res.message ?? 'Could not send media';
-    await loadChatMessages(chatId);
-    return null;
+    final messages = _chatMessages[chatId] ?? [];
+    final tempId = 'temp_${DateTime.now().microsecondsSinceEpoch}';
+    final pending = MessageModel(
+      id: tempId,
+      senderId: _currentUser?.id ?? '',
+      content: '',
+      timestamp: DateTime.now(),
+      type: type == 'video' ? MessageType.video : MessageType.image,
+      status: MessageStatus.sending,
+      mediaUrl: filePath, // local path preview while uploading
+    );
+    messages.add(pending);
+    _chatMessages[chatId] = messages;
+    notifyListeners();
+
+    final res = await ChatService().sendMediaMessage(chatId, filePath, type: type);
+    final idx = messages.indexWhere((m) => m.id == tempId);
+    if (res.success && res.data != null) {
+      final server = _messageFrom(res.data, fallbackSender: _currentUser?.id ?? '');
+      if (idx != -1) messages[idx] = server;
+      final ci = _chats.indexWhere((c) => c.id == chatId);
+      if (ci != -1) _chats[ci] = _chats[ci].copyWith(lastMessage: server);
+      notifyListeners();
+      return null;
+    }
+    if (idx != -1) {
+      messages[idx] = messages[idx].copyWith(status: MessageStatus.failed);
+      notifyListeners();
+    }
+    return res.message ?? 'Could not send media';
+  }
+
+  /// React to a message (Snapchat-style). Optimistic: apply my reaction locally,
+  /// then persist via POST /messages/{id}/react. Backend enforces one reaction
+  /// per user (updateOrCreate).
+  Future<void> reactToMessage(String chatId, String messageId, String emoji) async {
+    final list = _chatMessages[chatId];
+    if (list == null) return;
+    final i = list.indexWhere((m) => m.id == messageId);
+    if (i == -1) return;
+    final mine = _currentUser?.id ?? '';
+    final existing = List<MessageReaction>.from(list[i].reactions)
+      ..removeWhere((r) => r.userId == mine);
+    existing.add(MessageReaction(emoji: emoji, userId: mine, timestamp: DateTime.now()));
+    list[i] = list[i].copyWith(reactions: existing);
+    notifyListeners();
+    await ChatService().reactToMessage(messageId: messageId, emoji: emoji);
   }
 
   Future<void> loadChatMessages(String chatId) async {
     try {
       final res = await ChatService().getChatMessages(chatId: chatId);
       if (res.isSuccess && res.data != null) {
-        _chatMessages[chatId] = res.data!.map((m) => _messageFrom(m, fallbackSender: '')).toList();
+        final msgs = res.data!.map((m) => _messageFrom(m, fallbackSender: '')).toList();
+        // Backend returns newest-first (orderByDesc id); display oldest→newest.
+        msgs.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        _chatMessages[chatId] = msgs;
         notifyListeners();
       }
     } catch (_) {}
@@ -497,6 +623,25 @@ class AppProvider extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+
+  /// Send a captured photo/video to one or more friends. Opens (or reuses) a
+  /// direct conversation with each and posts the media. Returns null on success
+  /// or an error string. Used by the camera capture → destination chooser.
+  Future<String?> sendCapturedMediaToFriends(
+      List<int> friendIds, String filePath, {bool isVideo = false}) async {
+    final type = isVideo ? 'video' : 'image';
+    for (final fid in friendIds) {
+      final chat = await ChatService().createDirectChat(fid);
+      if (!chat.success || chat.data == null) return chat.message ?? 'Could not open chat';
+      final chatId = (chat.data!['id'] ?? chat.data!['uuid'] ?? '').toString();
+      if (chatId.isEmpty) return 'Could not resolve conversation';
+      final res = await ChatService().sendMediaMessage(chatId, filePath, type: type);
+      if (!res.success) return res.message ?? 'Could not send media';
+    }
+    await _loadChats();
+    notifyListeners();
+    return null;
   }
 
   // ─────────────────────────────────────────────────────────────────────────

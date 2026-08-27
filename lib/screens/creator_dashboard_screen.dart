@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/theme.dart';
 import '../api/services/lens_service.dart';
+import '../api/services/v32_service.dart';
 
 /// Creator Dashboard — real data from the SwiftSnap Lens Studio backend.
 ///
@@ -23,9 +24,12 @@ class CreatorDashboardScreen extends StatefulWidget {
 
 class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
   final LensService _lens = LensService();
+  final SwiftSnapV32Service _v32 = SwiftSnapV32Service();
   bool _loading = true;
   Map<String, dynamic>? _analytics;
   List<Map<String, dynamic>> _myLenses = [];
+  Map<String, dynamic>? _earnings;
+  List<Map<String, dynamic>> _transactions = [];
 
   @override
   void initState() {
@@ -38,11 +42,19 @@ class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
     final results = await Future.wait([
       _lens.analytics(days: 14),
       _lens.myLenses(),
+      _v32.creatorEarnings(),
+      _v32.creatorTransactions(),
     ]);
     if (!mounted) return;
     setState(() {
       _analytics = results[0] as Map<String, dynamic>?;
       _myLenses = (results[1] as List).cast<Map<String, dynamic>>();
+      final earnData = (results[2] as dynamic).data;
+      _earnings = earnData is Map ? Map<String, dynamic>.from(earnData) : null;
+      final txData = (results[3] as dynamic).data;
+      if (txData is Map && txData['data'] is List) {
+        _transactions = (txData['data'] as List).cast<Map<String, dynamic>>();
+      }
       _loading = false;
     });
   }
@@ -89,7 +101,7 @@ class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
                   const SizedBox(height: 20),
                   _myLensesSection(),
                   const SizedBox(height: 20),
-                  _backendRequiredCard(),
+                  _earningsSection(),
                 ],
               ),
             ),
@@ -258,37 +270,96 @@ class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
     );
   }
 
-  Widget _backendRequiredCard() {
+  Widget _earningsSection() {
+    final e = _earnings;
+    final currency = (e?['currency'] ?? 'USD').toString();
+    String money(dynamic v) {
+      final n = (v is num) ? v.toDouble() : double.tryParse('${v ?? 0}') ?? 0;
+      return '\$${n.toStringAsFixed(2)}';
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: SwiftSnapTheme.surfaceColor,
+        gradient: SwiftSnapTheme.primaryGradient,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline_rounded, color: SwiftSnapTheme.textSecondary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text('Earnings & audience analytics',
-                    style: TextStyle(color: SwiftSnapTheme.textPrimary, fontWeight: FontWeight.w700)),
-                SizedBox(height: 6),
-                Text(
-                  'Follower counts, engagement rate and earnings history aren\'t available yet — '
-                  'the backend needs a creator earnings/audience read API before these can be shown. '
-                  'The stats above are your real lens performance figures.',
-                  style: TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 13, height: 1.4),
-                ),
-              ],
-            ),
+          Row(
+            children: [
+              const Icon(Icons.account_balance_wallet_rounded, color: Colors.white),
+              const SizedBox(width: 8),
+              Text('Creator Earnings ($currency)',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
+            ],
           ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _earnStat('Total', money(e?['total_earnings']))),
+              Expanded(child: _earnStat('Available', money(e?['available_balance']))),
+              Expanded(child: _earnStat('Pending', money(e?['pending_balance']))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('Payout threshold ${money(e?['payout_threshold'])} · Paid out ${money(e?['paid_out'])}',
+              style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          if (_transactions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text('Recent transactions',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+            const SizedBox(height: 8),
+            ..._transactions.take(8).map((t) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.volunteer_activism_rounded, color: Colors.white, size: 16),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${t['description'] ?? t['type'] ?? 'Transaction'}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.white, fontSize: 13)),
+                            Text('${t['status'] ?? ''}',
+                                style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                      Text('+${money(t['net_amount'] ?? t['amount'])}',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                )),
+          ] else ...[
+            const SizedBox(height: 12),
+            const Text('No earnings yet. Tips on your lenses will appear here.',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _earnStat(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+      ],
     );
   }
 }

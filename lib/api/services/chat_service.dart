@@ -7,6 +7,17 @@ import '../api_response.dart';
 /// Handles chat and messaging API calls
 class ChatService {
   final ApiClient _client = ApiClient();
+
+  /// Create (or reuse) a direct 1:1 conversation with [friendId].
+  /// POST /chats {type:direct, participant_ids:[id]} — backend returns the
+  /// existing conversation when one already exists.
+  Future<ApiResponse<Map<String, dynamic>>> createDirectChat(int friendId) async {
+    return await _client.post(
+      ApiConfig.chatsList,
+      data: {'type': 'direct', 'participant_ids': [friendId]},
+      fromJson: (data) => data as Map<String, dynamic>,
+    );
+  }
   
   /// Get all chats for current user
   Future<ApiResponse<List<Map<String, dynamic>>>> getChats({
@@ -26,8 +37,7 @@ class ChatService {
   }
   
   /// Get chat by ID
-  Future<ApiResponse<Map<String, dynamic>>> getChatById(String chatId) async {
-    return await _client.get(
+  Future<ApiResponse<Map<String, dynamic>>> getChatById(String chatId) async {    return await _client.get(
       ApiConfig.getChatById(chatId),
       fromJson: (data) => data as Map<String, dynamic>,
     );
@@ -92,14 +102,15 @@ class ChatService {
     return await _client.delete(ApiConfig.deleteMessage(messageId));
   }
   
-  /// React to message
+  /// React to message. Backend expects field `reaction` (the emoji), stored in
+  /// the message_reactions.emoji column. updateOrCreate → one reaction per user.
   Future<ApiResponse<Map<String, dynamic>>> reactToMessage({
     required String messageId,
     required String emoji,
   }) async {
     return await _client.post(
       ApiConfig.reactToMessage(messageId),
-      data: {'emoji': emoji},
+      data: {'reaction': emoji},
       fromJson: (data) => data as Map<String, dynamic>,
     );
   }
@@ -125,6 +136,31 @@ class ChatService {
     );
   }
   
+  /// Send a media message in ONE multipart call to POST /chats/{id}/messages.
+  /// The Laravel ChatController creates the Message + MessageMedia atomically,
+  /// stores the original in the private audit tree, hashes it (SHA-256), fans
+  /// out push + broadcasts MessageSent. Field name MUST be `file` and `type`
+  /// one of image|video|audio|file. Returns the created message (with `media`).
+  Future<ApiResponse<Map<String, dynamic>>> sendMediaMessage(
+    String chatId,
+    String filePath, {
+    String type = 'image',
+    String? caption,
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    return await _client.uploadFile(
+      ApiConfig.sendMessage(chatId),
+      filePath,
+      fieldName: 'file',
+      additionalData: {
+        'type': type,
+        if (caption != null && caption.isNotEmpty) 'content': caption,
+      },
+      fromJson: (data) => data as Map<String, dynamic>,
+      onSendProgress: onProgress,
+    );
+  }
+
   /// Search messages in a chat
   Future<ApiResponse<List<Map<String, dynamic>>>> searchMessages({
     required String query,

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/theme.dart';
+import '../api/api_config.dart';
+import '../api/api_client.dart';
 import '../api/services/user_service.dart';
 import '../api/services/friend_service.dart';
+import '../api/services/v32_service.dart';
 import '../models/user_model.dart';
 
 /// Discover — real people discovery.
@@ -27,8 +31,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   final TextEditingController _searchController = TextEditingController();
   final UserService _userService = UserService();
   final FriendService _friendService = FriendService();
+  final SwiftSnapV32Service _v32 = SwiftSnapV32Service();
 
   List<UserModel> _users = [];
+  List<Map<String, dynamic>> _publicStories = [];
   final Set<String> _requested = {};
   bool _loading = true;
   String? _error;
@@ -55,6 +61,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     });
     final res = await _userService.getDiscoverUsers();
     if (!mounted) return;
+    // Public stories are shown only on the default (unsearched) Discover view.
+    _v32.publicStories().then((r) {
+      if (!mounted) return;
+      final data = r.data?['data'];
+      if (data is List) {
+        setState(() => _publicStories = data.cast<Map<String, dynamic>>());
+      }
+    });
     setState(() {
       _loading = false;
       if (res.isSuccess) {
@@ -145,8 +159,106 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 ),
               ),
             ),
+            if (_query.isEmpty) _publicStoriesStrip(),
             Expanded(child: _buildBody()),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _publicStoriesStrip() {
+    if (_publicStories.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 110,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 4, 16, 6),
+            child: Text('Public Stories',
+                style: TextStyle(color: SwiftSnapTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w700)),
+          ),
+          Expanded(
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _publicStories.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, i) => _publicStoryCircle(_publicStories[i]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _mediaUrl(dynamic raw) {
+    final s = (raw ?? '').toString();
+    if (s.isEmpty) return '';
+    if (s.startsWith('http')) return s;
+    return '${ApiConfig.BASE_URL}$s';
+  }
+
+  Widget _publicStoryCircle(Map<String, dynamic> story) {
+    final user = story['user'] is Map ? story['user'] as Map : const {};
+    final username = (user['username'] ?? user['display_name'] ?? 'user').toString();
+    final avatar = _mediaUrl((user['profile'] is Map ? user['profile']['avatar_url'] : null) ?? user['avatar_url']);
+    return GestureDetector(
+      onTap: () => _openPublicStory(story),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 62,
+            height: 62,
+            padding: const EdgeInsets.all(2),
+            decoration: const BoxDecoration(shape: BoxShape.circle, gradient: SwiftSnapTheme.storyGradient),
+            child: CircleAvatar(
+              backgroundColor: SwiftSnapTheme.surfaceColor,
+              backgroundImage: avatar.isNotEmpty
+                  ? CachedNetworkImageProvider(avatar,
+                      headers: {'Authorization': 'Bearer ${ApiClient.currentToken ?? ''}'})
+                  : null,
+              child: avatar.isEmpty
+                  ? Text(username.isNotEmpty ? username[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.white))
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            width: 64,
+            child: Text('@$username',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: SwiftSnapTheme.textMuted, fontSize: 11)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openPublicStory(Map<String, dynamic> story) {
+    final url = _mediaUrl(story['media_url'] ?? story['mediaUrl']);
+    if (url.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: CachedNetworkImage(
+            imageUrl: url,
+            httpHeaders: {'Authorization': 'Bearer ${ApiClient.currentToken ?? ''}'},
+            fit: BoxFit.contain,
+            placeholder: (c, _) => const SizedBox(
+                height: 300, child: Center(child: CircularProgressIndicator(color: Colors.white))),
+            errorWidget: (c, _, __) =>
+                const SizedBox(height: 200, child: Icon(Icons.broken_image_rounded, color: Colors.white54)),
+          ),
         ),
       ),
     );

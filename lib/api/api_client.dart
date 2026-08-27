@@ -12,7 +12,12 @@ class ApiClient {
   
   late final Dio _dio;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
-  
+
+  /// In-memory cache of the current bearer token. Populated on every request
+  /// and on login/logout so synchronous consumers (e.g. authed image loading
+  /// for chat media) can attach the Authorization header without an await.
+  static String? currentToken;
+
   // Storage keys
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
@@ -90,7 +95,9 @@ class ApiClient {
   
   // Token management
   Future<String?> getAccessToken() async {
-    return await _storage.read(key: _accessTokenKey);
+    final t = await _storage.read(key: _accessTokenKey);
+    currentToken = t;
+    return t;
   }
   
   Future<String?> getRefreshToken() async {
@@ -98,11 +105,13 @@ class ApiClient {
   }
   
   Future<void> setTokens(String accessToken, String refreshToken) async {
+    currentToken = accessToken;
     await _storage.write(key: _accessTokenKey, value: accessToken);
     await _storage.write(key: _refreshTokenKey, value: refreshToken);
   }
   
   Future<void> clearTokens() async {
+    currentToken = null;
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
   }

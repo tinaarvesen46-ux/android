@@ -37,6 +37,7 @@ class _CameraFirstScreenState extends State<CameraFirstScreen> with WidgetsBindi
   int _currentIdx = 0;
   bool _initializing = true;
   bool _permissionDenied = false;
+  String? _initError;
   FlashMode _flash = FlashMode.off;
   bool _isRecording = false;
   DateTime? _recordStart;
@@ -54,35 +55,45 @@ class _CameraFirstScreenState extends State<CameraFirstScreen> with WidgetsBindi
   }
 
   Future<void> _boot() async {
-    // Ask for camera + mic (mic needed for video). Photos-only works fine without mic permission.
-    final camOk = (await Permission.camera.request()).isGranted;
-    final micOk = (await Permission.microphone.request()).isGranted;
-    if (!camOk) { setState(() { _permissionDenied = true; _initializing = false; }); return; }
+    setState(() { _initError = null; _initializing = true; });
+    try {
+      // Ask for camera + mic (mic needed for video). Photos-only works fine without mic permission.
+      final camOk = (await Permission.camera.request()).isGranted;
+      final micOk = (await Permission.microphone.request()).isGranted;
+      if (!camOk) { setState(() { _permissionDenied = true; _initializing = false; }); return; }
 
-    _cameras = await availableCameras();
-    // Prefer front camera if requested and available.
-    _currentIdx = widget.startWithFrontCamera
-        ? _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.front).clamp(0, _cameras.length - 1)
-        : 0;
-    await _initController();
-    _presets = await LensService().beautyPresets();
-    if (mounted) setState(() { _initializing = false; });
-    // best-effort — if mic denied, video recording just won't produce audio.
-    if (!micOk) debugPrint('mic permission denied — video will be silent');
+      _cameras = await availableCameras();
+      if (_cameras.isEmpty) {
+        setState(() { _initError = 'No camera found on this device.'; _initializing = false; });
+        return;
+      }
+      // Prefer front camera if requested and available.
+      final frontIdx = _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.front);
+      _currentIdx = (widget.startWithFrontCamera && frontIdx >= 0) ? frontIdx : 0;
+      await _initController();
+      try { _presets = await LensService().beautyPresets(); } catch (_) { _presets = const []; }
+      if (mounted) setState(() { _initializing = false; });
+      if (!micOk) debugPrint('mic permission denied — video will be silent');
+    } catch (e) {
+      if (mounted) setState(() { _initError = 'Camera failed to start. Tap retry.'; _initializing = false; });
+    }
   }
 
   Future<void> _initController() async {
-    await _controller?.dispose();
+    final old = _controller;
+    _controller = null;
+    await old?.dispose();
     if (_cameras.isEmpty) return;
-    _controller = CameraController(
+    final controller = CameraController(
       _cameras[_currentIdx],
       ResolutionPreset.high,
       enableAudio: true,
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
-    await _controller!.initialize();
-    await _controller!.setFlashMode(_flash);
-    if (mounted) setState(() {});
+    await controller.initialize();
+    await controller.setFlashMode(_flash);
+    if (!mounted) { await controller.dispose(); return; }
+    setState(() { _controller = controller; });
   }
 
   Future<void> _switchCamera() async {
@@ -142,8 +153,18 @@ class _CameraFirstScreenState extends State<CameraFirstScreen> with WidgetsBindi
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive) _controller?.dispose();
-    if (state == AppLifecycleState.resumed) _initController();
+    final c = _controller;
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      if (c != null) {
+        _controller = null;
+        c.dispose();
+        if (mounted) setState(() {});
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      if (_controller == null && !_initializing && _cameras.isNotEmpty) {
+        _initController();
+      }
+    }
   }
 
   @override
@@ -152,6 +173,44 @@ class _CameraFirstScreenState extends State<CameraFirstScreen> with WidgetsBindi
     _tick?.cancel();
     _controller?.dispose();
     super.dispose();
+  }
+
+  /// Builds a 4x5 color matrix from the active lens preset so the effect is
+  /// visible live on the preview (warmth from `tan`, brightness from `glow`,
+  /// gentle saturation drop from `smooth`). Preset 0 / no presets = identity.
+  List<double> _livePreviewMatrix() {
+    const identity = <double>[
+      1, 0, 0, 0, 0,
+      0, 1, 0, 0, 0,
+      0, 0, 1, 0, 0,
+      0, 0, 0, 1, 0,
+    ];
+    if (_presets.isEmpty || _presetIdx <= 0 || _presetIdx >= _presets.length) {
+      return identity;
+    }
+    final params = (_presets[_presetIdx]['params'] as Map?) ?? const {};
+    final glow = ((params['glow'] ?? 0) as num).toDouble() / 100.0;
+    final tan = ((params['tan'] ?? 0) as num).toDouble() / 100.0;
+    final smooth = ((params['smooth'] ?? 0) as num).toDouble() / 100.0;
+
+    final s = 1.0 - smooth * 0.30; // saturation factor
+    final rGain = 1.0 + tan * 0.18; // warm
+    final bGain = 1.0 - tan * 0.14;
+    final bright = glow * 28.0; // additive brightness (0..255 scale)
+
+    const lr = 0.2126, lg = 0.7152, lb = 0.0722;
+    double sat(double l, bool diag) => diag ? l + s * (1 - l) : l - s * l;
+
+    final r0 = sat(lr, true) * rGain, r1 = sat(lg, false) * rGain, r2 = sat(lb, false) * rGain;
+    final g0 = sat(lr, false), g1 = sat(lg, true), g2 = sat(lb, false);
+    final b0 = sat(lr, false) * bGain, b1 = sat(lg, false) * bGain, b2 = sat(lb, true) * bGain;
+
+    return <double>[
+      r0, r1, r2, 0, bright,
+      g0, g1, g2, 0, bright,
+      b0, b1, b2, 0, bright,
+      0, 0, 0, 1, 0,
+    ];
   }
 
   @override
@@ -177,6 +236,30 @@ class _CameraFirstScreenState extends State<CameraFirstScreen> with WidgetsBindi
         ),
       );
     }
+    if (_initError != null) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.videocam_off_rounded, size: 48, color: Colors.white54),
+              const SizedBox(height: 12),
+              Text(_initError!,
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton(onPressed: _boot, child: const Text('Retry')),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close', style: TextStyle(color: Colors.white70)),
+              ),
+            ]),
+          ),
+        ),
+      );
+    }
     if (_initializing || _controller == null || !_controller!.value.isInitialized) {
       return const Scaffold(backgroundColor: Colors.black, body: Center(child: CircularProgressIndicator(color: Colors.white)));
     }
@@ -186,17 +269,22 @@ class _CameraFirstScreenState extends State<CameraFirstScreen> with WidgetsBindi
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(fit: StackFit.expand, children: [
-        // Live preview — full-screen cover (fills like Snapchat, crops excess)
+        // Live preview — full-screen cover (fills like Snapchat, crops excess).
+        // A live ColorFilter previews the selected lens so the effect is
+        // visibly applied on-screen (full pixel processing runs at capture).
         Positioned.fill(
           child: ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.center,
-              child: FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(
-                  width: size.width,
-                  height: size.width / _controller!.value.aspectRatio,
-                  child: CameraPreview(_controller!),
+            child: ColorFiltered(
+              colorFilter: ColorFilter.matrix(_livePreviewMatrix()),
+              child: OverflowBox(
+                alignment: Alignment.center,
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: size.width,
+                    height: size.width / _controller!.value.aspectRatio,
+                    child: CameraPreview(_controller!),
+                  ),
                 ),
               ),
             ),
