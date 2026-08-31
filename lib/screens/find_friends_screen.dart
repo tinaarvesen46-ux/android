@@ -43,7 +43,8 @@ class _FindFriendsScreenState extends State<FindFriendsScreen> {
       _error = null;
     });
 
-    final granted = await FlutterContacts.requestPermission();
+    await FlutterContacts.permissions.request(PermissionType.read);
+    final granted = await FlutterContacts.permissions.has(PermissionType.read);
     if (!granted) {
       setState(() {
         _phase = _Phase.intro;
@@ -53,7 +54,7 @@ class _FindFriendsScreenState extends State<FindFriendsScreen> {
     }
 
     try {
-      final contacts = await FlutterContacts.getContacts(withProperties: true);
+      final contacts = await FlutterContacts.getAll(properties: {ContactProperty.phone});
       final hashes = <String>{};
       for (final c in contacts) {
         for (final p in c.phones) {
