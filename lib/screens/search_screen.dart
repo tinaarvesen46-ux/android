@@ -11,6 +11,7 @@ import '../widgets/common/app_top_bar.dart';
 import '../widgets/common/async_state_view.dart';
 import '../widgets/common/empty_state_view.dart';
 import '../widgets/common/snap_avatar.dart';
+import '../widgets/common/role_badge.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -84,7 +85,13 @@ class _SearchScreenState extends State<SearchScreen> {
                             fallbackText: user.displayName,
                             size: AppTheme.avatarSm,
                           ),
-                          title: Text(user.displayName),
+                          title: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(user.displayName),
+                              RoleBadge(role: user.role, roleLabel: user.roleLabel),
+                            ],
+                          ),
                           subtitle: Text('@${user.username}'),
                           onTap: () => context.push('/user/${user.id}'),
                         );

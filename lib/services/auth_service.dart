@@ -1,3 +1,4 @@
+import '../core/json_mappers.dart';
 import '../models/user.dart';
 import 'api_service.dart';
 
@@ -30,12 +31,7 @@ class AuthService {
       return AuthResult(
         success: true,
         token: token,
-        user: User(
-          id: data['user']['id'].toString(),
-          username: data['user']['username'] as String,
-          displayName: data['user']['display_name'] as String,
-          avatarUrl: data['user']['avatar_url'] as String?,
-        ),
+        user: userFromJson(asMap(data['user'])),
       );
     } catch (e) {
       return AuthResult(

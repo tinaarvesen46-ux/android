@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/chat.dart';
 import '../../theme/theme.dart';
 import '../common/snap_avatar.dart';
+import '../common/role_badge.dart';
 
 class ChatRow extends StatelessWidget {
   final Conversation conversation;
@@ -49,17 +50,29 @@ class ChatRow extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          conversation.isGroup
-                              ? (conversation.groupName ??
-                                  conversation.participant.displayName)
-                              : conversation.participant.displayName,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight:
-                                hasUnread ? FontWeight.w700 : FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                conversation.isGroup
+                                    ? (conversation.groupName ??
+                                        conversation.participant.displayName)
+                                    : conversation.participant.displayName,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: hasUnread
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (!conversation.isGroup)
+                              RoleBadge(
+                                role: conversation.participant.role,
+                                roleLabel: conversation.participant.roleLabel,
+                              ),
+                          ],
                         ),
                       ),
                       if (conversation.lastMessage != null)

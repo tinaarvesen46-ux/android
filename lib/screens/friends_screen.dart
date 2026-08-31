@@ -9,6 +9,7 @@ import '../theme/theme.dart';
 import '../widgets/common/app_top_bar.dart';
 import '../widgets/common/async_state_view.dart';
 import '../widgets/common/snap_avatar.dart';
+import '../widgets/common/role_badge.dart';
 import '../widgets/common/snap_icon_button.dart';
 
 class FriendsScreen extends StatefulWidget {
@@ -92,6 +93,7 @@ class _FriendsScreenState extends State<FriendsScreen>
                         ),
                         title: Text(friend.displayName),
                         subtitle: Text('@${friend.username}'),
+                        trailing: RoleBadge(role: friend.role, roleLabel: friend.roleLabel),
                         onTap: () => context.push('/user/${friend.id}'),
                       );
                     },
@@ -114,7 +116,13 @@ class _FriendsScreenState extends State<FriendsScreen>
                           fallbackText: request.user.displayName,
                           size: AppTheme.avatarSm,
                         ),
-                        title: Text(request.user.displayName),
+                        title: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(request.user.displayName),
+                            RoleBadge(role: request.user.role, roleLabel: request.user.roleLabel),
+                          ],
+                        ),
                         subtitle:
                             Text(incoming ? 'Wants to be friends' : 'Request sent'),
                         onTap: () => context.push('/user/${request.user.id}'),

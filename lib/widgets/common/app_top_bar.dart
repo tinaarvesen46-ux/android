@@ -6,6 +6,10 @@ import '../../theme/theme.dart';
 /// camera-first rhythm and can be composed inside a Column.
 class AppTopBar extends StatelessWidget {
   final String? title;
+
+  /// Overrides [title] when set — used when the title needs inline
+  /// decoration (e.g. a role badge next to a chat participant's name).
+  final Widget? titleWidget;
   final Widget? leading;
   final List<Widget> actions;
   final bool showBack;
@@ -14,6 +18,7 @@ class AppTopBar extends StatelessWidget {
   const AppTopBar({
     super.key,
     this.title,
+    this.titleWidget,
     this.leading,
     this.actions = const [],
     this.showBack = false,
@@ -52,12 +57,13 @@ class AppTopBar extends StatelessWidget {
             child: Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: AppTheme.spacingSm),
-              child: Text(
-                title ?? '',
-                style: theme.textTheme.titleLarge,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: titleWidget ??
+                  Text(
+                    title ?? '',
+                    style: theme.textTheme.titleLarge,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
             ),
           ),
           ...actions,

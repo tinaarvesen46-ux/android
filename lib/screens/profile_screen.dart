@@ -9,6 +9,7 @@ import '../widgets/common/app_top_bar.dart';
 import '../widgets/common/async_state_view.dart';
 import '../widgets/common/snap_avatar.dart';
 import '../widgets/common/snap_icon_button.dart';
+import '../widgets/common/role_badge.dart';
 import '../widgets/profile/profile_action_row.dart';
 import '../widgets/profile/profile_stat.dart';
 
@@ -63,9 +64,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: AppTheme.spacingMd),
                   Center(
-                    child: Text(
-                      user.displayName,
-                      style: Theme.of(context).textTheme.headlineSmall,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          user.displayName,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        RoleBadge(role: user.role, roleLabel: user.roleLabel),
+                      ],
                     ),
                   ),
                   Center(

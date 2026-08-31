@@ -10,6 +10,7 @@ import '../widgets/chats/message_bubble.dart';
 import '../widgets/chats/message_composer.dart';
 import '../widgets/common/app_top_bar.dart';
 import '../widgets/common/async_state_view.dart';
+import '../widgets/common/role_badge.dart';
 import '../widgets/common/snap_icon_button.dart';
 
 class ChatDetailScreen extends StatefulWidget {
@@ -98,6 +99,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           AppTopBar(
             showBack: true,
             title: title,
+            titleWidget: conversation == null || conversation.isGroup
+                ? null
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleLarge,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      RoleBadge(
+                        role: conversation.participant.role,
+                        roleLabel: conversation.participant.roleLabel,
+                      ),
+                    ],
+                  ),
             actions: [
               if (conversation != null && !conversation.isGroup)
                 SnapIconButton(

@@ -92,6 +92,8 @@ User userFromJson(Map<String, dynamic> json) => User(
       lastSeen: asNullableDate(json['last_seen_at'] ?? json['last_seen']),
       friendCount: asInt(json['friend_count'] ?? json['friends_count']),
       isVerified: asBool(json['is_verified']),
+      role: asString(json['role'], fallback: 'user'),
+      roleLabel: asString(json['role_label']),
     );
 
 UserProfile userProfileFromJson(Map<String, dynamic> json) {

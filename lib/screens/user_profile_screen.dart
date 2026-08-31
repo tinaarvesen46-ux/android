@@ -7,6 +7,7 @@ import '../theme/theme.dart';
 import '../widgets/common/app_top_bar.dart';
 import '../widgets/common/async_state_view.dart';
 import '../widgets/common/snap_avatar.dart';
+import '../widgets/common/role_badge.dart';
 import '../widgets/profile/profile_stat.dart';
 
 class UserProfileScreen extends StatefulWidget {
@@ -66,10 +67,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingMd),
-                  Text(
-                    profile.user.displayName,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                    textAlign: TextAlign.center,
+                  Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          profile.user.displayName,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                          textAlign: TextAlign.center,
+                        ),
+                        RoleBadge(
+                          role: profile.user.role,
+                          roleLabel: profile.user.roleLabel,
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: AppTheme.spacingXxs),
                   Text(
