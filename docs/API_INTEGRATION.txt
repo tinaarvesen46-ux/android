@@ -1,0 +1,156 @@
+SWIFTSNAP - API INTEGRATION CONTRACT
+====================================
+
+Base URL .......... https://api.swiftsnap.app/api/v1
+Auth .............. Authorization: Bearer <token>   (Laravel Sanctum)
+Headers ........... Accept: application/json
+                    Content-Type: application/json
+                    Content-Type: multipart/form-data (uploads only)
+Error envelope .... { "message": string, "errors": { field: [string] } }
+Error codes ....... 401 expired session, 403 forbidden, 404 missing,
+                    413 payload too large, 415 unsupported media type,
+                    422 validation, 429 throttled, 5xx server
+Pagination ........ Laravel paginator: { data: [], links: {}, meta: {} }
+                    The client accepts a bare array OR a "data" wrapper.
+Media URLs ........ Absolute HTTPS, publicly resolvable or signed with an
+                    expiry the client does not compute. Videos must accept
+                    range requests. Every video needs a thumbnail_url.
+
+Client boundary:  UI -> Provider -> Repository -> ApiService -> Laravel.
+No widget performs HTTP. No response is simulated anywhere in the client.
+
+Field-level parsing (including accepted aliases) is in
+lib/core/json_mappers.dart. Per-method contracts are duplicated as Dart doc
+comments above the calling methods in lib/repositories/*.dart.
+
+
+1. AUTHENTICATION   (lib/services/auth_service.dart)
+----------------------------------------------------
+POST /auth/register
+  AUTH      none
+  BODY      { name, username, email, password, birthday }
+  VALIDATE  name required; username unique, 3-30, [a-z0-9._];
+            email unique + valid; password min 8; birthday YYYY-MM-DD,
+            age gate 13+ enforced server-side.
+  SUCCESS   201 { token, user{} }
+  ERRORS    422 field errors (username_taken, email_taken, underage)
+
+POST /auth/login
+  AUTH      none
+  BODY      { identifier, password }      identifier = username OR email
+  SUCCESS   200 { token, user{} }
+  ERRORS    401 invalid credentials, 429 throttled
+
+POST /auth/logout
+  AUTH      bearer
+  SUCCESS   204. The client clears the secure-storage token regardless.
+
+GET /users/me
+  AUTH      bearer
+  SUCCESS   200 user object. Used as the session validity probe on launch.
+
+
+2. USERS / FRIENDS / SAFETY   (social_repository.dart)
+------------------------------------------------------
+GET    /users/me                      -> user object
+GET    /users/{id}                    -> profile object (+ relationship)
+PUT    /users/me                      { display_name?, username?, bio? }
+POST   /users/me/avatar               { config: {...} } -> { avatar_url }
+POST   /users/me/delete               { password } -> 204
+GET    /users/search?q=               -> paginated user list
+GET    /friends                       -> paginated user list
+GET    /friends/requests              -> paginated friend-request list
+POST   /friends/requests              { user_id } -> 201
+DELETE /friends/requests/{id}         -> 204   (cancel outgoing)
+POST   /friends/requests/{id}/accept  -> relationship: friends
+POST   /friends/requests/{id}/decline -> relationship: none
+DELETE /friends/{userId}              -> relationship: none
+POST   /blocks                        { user_id } -> relationship: blocked
+DELETE /blocks/{userId}               -> relationship: none
+GET    /blocks                        -> paginated user list
+POST   /reports                       { type, target_id, reason, description? }
+GET    /notifications                 -> paginated notification list
+POST   /notifications/read-all        -> 204
+GET    /achievements                  -> achievement list
+
+USER OBJECT
+  { id, username, display_name, avatar_url?, bio?, is_online, last_seen_at?,
+    friend_count, is_verified }
+PROFILE ADDS
+  { relationship: none|request_sent|request_received|friends|blocked|blocked_by,
+    friend_count, story_count, reel_count, is_public_profile, is_following,
+    follower_count }
+  The client renders profile actions ONLY from `relationship`.
+REQUEST      { id, user{}, direction: incoming|outgoing, created_at }
+NOTIFICATION { id, type, title, body, actor{}?, target_id?, is_read,
+               created_at }
+ACHIEVEMENT  { id, name, description, category, is_unlocked, progress, target,
+               unlocked_at? }
+
+
+3. CHAT   (chat_repository.dart)
+--------------------------------
+GET    /conversations                        -> paginated conversation list
+POST   /conversations   { user_ids[], group_name? } -> conversation
+PUT    /conversations/{id}  { is_muted?, is_pinned? } -> conversation
+DELETE /conversations/{id}                   -> 204
+GET    /conversations/{id}/messages?before=  -> paginated message list
+POST   /conversations/{id}/messages
+       { type: text|photo|video|voice|snap, content?, media_id? } -> message
+POST   /conversations/{id}/read              -> 204
+
+CONVERSATION { id, participant{}, members[]?, last_message{}?, unread_count,
+               is_pinned, is_muted, is_typing, is_group, group_name? }
+MESSAGE      { id, sender_id, type, content|media_url, is_read, is_saved,
+               created_at }
+
+
+4. STORIES / REELS / DISCOVER   (feed_repository.dart)
+------------------------------------------------------
+GET  /stories               -> [{ id, user{}, items[], is_seen, created_at }]
+     STORY ITEM { id, media_url, is_video, duration(s), view_count,
+                  reply_count, created_at }
+POST /stories/{id}/view     -> 204
+POST /stories/{itemId}/reply { content } -> 201
+GET  /spotlight?cursor=     -> paginated reel list
+     REEL { id, creator{}, media_url, thumbnail_url?, is_video, caption?,
+            hashtags[], like_count, comment_count, share_count, view_count,
+            is_liked, is_saved, created_at }
+POST /spotlight/{id}/like   -> { is_liked, like_count }
+POST /spotlight/{id}/save   -> { is_saved }
+GET  /discover/categories   -> [{ id, name, icon }]
+GET  /discover?category=    -> paginated discover list
+     DISCOVER { id, title, subtitle?, image_url, category, source, view_count,
+                published_at, is_sponsored }
+
+
+5. MEDIA & MEMORIES   (media_repository.dart)
+---------------------------------------------
+POST   /media    multipart: file, kind=photo|video
+                 -> 201 { id, media_url, thumbnail_url? }
+POST   /stories        { media_id, audience }
+POST   /spotlight      { media_id, caption?, hashtags[]? }
+POST   /memories       { media_id }
+GET    /memories?kind= -> paginated memory list
+DELETE /memories/{id}            -> 204
+POST   /memories/{id}/favorite   -> 200
+Full lifecycle, limits and failure states: docs/MEDIA_PIPELINE.txt
+
+
+6. MAP   (map_repository.dart)
+------------------------------
+GET  /map/friends    -> [{ user{}, latitude, longitude, updated_at }]
+POST /map/location   { latitude, longitude } -> 204
+     Never sent while Ghost Mode is on.
+POST /map/ghost-mode { enabled } -> 204
+Tiles are keyless OpenStreetMap and require no backend or provider key.
+
+
+7. CLIENT BEHAVIOUR CONTRACT
+----------------------------
+* Every list endpoint drives loading -> success/empty/error -> retry.
+  An empty array is an explicit empty state, never an endless spinner.
+* No response is ever simulated. If an endpoint is missing, the screen shows
+  the real transport error with a Retry action.
+* Only the repository layer talks to ApiService. Widgets never call HTTP.
+* A success message appears only after a 2xx from the operation itself.

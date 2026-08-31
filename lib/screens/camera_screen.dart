@@ -1,10 +1,19 @@
 import 'dart:async';
+
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+import '../models/media.dart';
 import '../theme/theme.dart';
-import 'story_creation_screen.dart';
+import '../widgets/camera/camera_controls.dart';
+import '../widgets/camera/camera_permission_view.dart';
+
+enum CameraReadiness { initialising, ready, denied, permanentlyDenied, failed }
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -14,448 +23,389 @@ class CameraScreen extends StatefulWidget {
 }
 
 class _CameraScreenState extends State<CameraScreen>
-    with TickerProviderStateMixin, WidgetsBindingObserver {
-  // Real device camera
+    with WidgetsBindingObserver {
   CameraController? _controller;
   List<CameraDescription> _cameras = const [];
-  int _currentIdx = 0;
-  bool _initializing = true;
-  bool _permissionDenied = false;
-  bool _isFrontCamera = true;
-  FlashMode _flash = FlashMode.off;
+  int _cameraIndex = 0;
 
-  int _selectedFilter = 0;
-  late AnimationController _pulseController;
+  CameraReadiness _readiness = CameraReadiness.initialising;
+  String _failureMessage = '';
 
-  final List<FilterEffect> _filters = [
-    FilterEffect(name: 'Normal', icon: Icons.circle_outlined, color: Colors.white),
-    FilterEffect(name: 'Glow', icon: Icons.auto_awesome, color: SwiftSnapTheme.primaryPurple),
-    FilterEffect(name: 'Vintage', icon: Icons.filter_vintage, color: Colors.amber),
-    FilterEffect(name: 'B&W', icon: Icons.contrast, color: Colors.grey),
-    FilterEffect(name: 'Neon', icon: Icons.lightbulb, color: SwiftSnapTheme.primaryPink),
-    FilterEffect(name: 'Cool', icon: Icons.ac_unit, color: SwiftSnapTheme.accentCyan),
-  ];
+  bool _isRecording = false;
+  bool _isCapturing = false;
+  FlashMode _flashMode = FlashMode.auto;
+
+  double _minZoom = 1;
+  double _maxZoom = 1;
+  double _zoom = 1;
+  double _baseZoom = 1;
+
+  Timer? _recordTimer;
+  Duration _recordDuration = Duration.zero;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat(reverse: true);
-    _boot();
-  }
-
-  Future<void> _boot() async {
-    // Camera permission is mandatory for a live preview. Mic is best-effort
-    // (only needed for video with sound).
-    final camStatus = await Permission.camera.request();
-    await Permission.microphone.request();
-    if (!camStatus.isGranted) {
-      if (mounted) setState(() { _permissionDenied = true; _initializing = false; });
-      return;
-    }
-    try {
-      _cameras = await availableCameras();
-    } catch (_) {
-      _cameras = const [];
-    }
-    if (_cameras.isEmpty) {
-      if (mounted) setState(() { _initializing = false; });
-      return;
-    }
-    final frontIdx = _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.front);
-    _currentIdx = _isFrontCamera && frontIdx >= 0 ? frontIdx : 0;
-    _isFrontCamera = _cameras[_currentIdx].lensDirection == CameraLensDirection.front;
-    await _initController();
-    if (mounted) setState(() { _initializing = false; });
-  }
-
-  Future<void> _initController() async {
-    await _controller?.dispose();
-    if (_cameras.isEmpty) return;
-    final controller = CameraController(
-      _cameras[_currentIdx],
-      ResolutionPreset.high,
-      enableAudio: true,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-    _controller = controller;
-    try {
-      await controller.initialize();
-      await controller.setFlashMode(_flash);
-    } catch (_) {/* leave preview loader visible if a camera fails */}
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _switchCamera() async {
-    if (_cameras.length < 2) return;
-    HapticFeedback.lightImpact();
-    _currentIdx = (_currentIdx + 1) % _cameras.length;
-    _isFrontCamera = _cameras[_currentIdx].lensDirection == CameraLensDirection.front;
-    setState(() {});
-    await _initController();
-  }
-
-  Future<void> _toggleFlash() async {
-    HapticFeedback.lightImpact();
-    _flash = switch (_flash) {
-      FlashMode.off => FlashMode.auto,
-      FlashMode.auto => FlashMode.always,
-      _ => FlashMode.off,
-    };
-    try { await _controller?.setFlashMode(_flash); } catch (_) {}
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _takePhoto() async {
-    HapticFeedback.mediumImpact();
-    final c = _controller;
-    if (c == null || !c.value.isInitialized || c.value.isTakingPicture) return;
-    try {
-      final shot = await c.takePicture();
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const StoryCreationScreen()),
-      );
-      debugPrint('SwiftSnap captured photo: ${shot.path}');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not capture photo: $e')),
-        );
-      }
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final c = _controller;
-    if (c == null || !c.value.isInitialized) return;
-    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
-      c.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _initController();
-    }
+    _bootstrap();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _pulseController.dispose();
+    _recordTimer?.cancel();
     _controller?.dispose();
     super.dispose();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      _recordTimer?.cancel();
+      final old = _controller;
+      _controller = null;
+      if (mounted) setState(() => _isRecording = false);
+      old?.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _bootstrap();
+    }
+  }
+
+  Future<void> _bootstrap() async {
+    if (!mounted) return;
+    setState(() {
+      _readiness = CameraReadiness.initialising;
+      _failureMessage = '';
+    });
+
+    if (!kIsWeb) {
+      final camera = await Permission.camera.request();
+      if (camera.isPermanentlyDenied) {
+        if (mounted) {
+          setState(() => _readiness = CameraReadiness.permanentlyDenied);
+        }
+        return;
+      }
+      if (!camera.isGranted) {
+        if (mounted) setState(() => _readiness = CameraReadiness.denied);
+        return;
+      }
+      // Audio is required for video capture; a denial only removes sound.
+      await Permission.microphone.request();
+    }
+
+    try {
+      _cameras = await availableCameras();
+      if (_cameras.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _readiness = CameraReadiness.failed;
+            _failureMessage = 'No camera is available on this device.';
+          });
+        }
+        return;
+      }
+      await _startController(_cameraIndex.clamp(0, _cameras.length - 1));
+    } on CameraException catch (e) {
+      if (mounted) {
+        setState(() {
+          _readiness = CameraReadiness.failed;
+          _failureMessage = e.description ?? 'The camera could not be started.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _readiness = CameraReadiness.failed;
+          _failureMessage = 'The camera could not be started.';
+        });
+      }
+    }
+  }
+
+  Future<void> _startController(int index) async {
+    final previous = _controller;
+    _controller = null;
+    await previous?.dispose();
+
+    final controller = CameraController(
+      _cameras[index],
+      ResolutionPreset.high,
+      enableAudio: true,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+
+    try {
+      await controller.initialize();
+      _minZoom = await controller.getMinZoomLevel();
+      _maxZoom = await controller.getMaxZoomLevel();
+      await controller.setFlashMode(_flashMode);
+    } on CameraException catch (e) {
+      await controller.dispose();
+      if (mounted) {
+        setState(() {
+          _readiness = CameraReadiness.failed;
+          _failureMessage = e.description ?? 'The camera could not be started.';
+        });
+      }
+      return;
+    }
+
+    if (!mounted) {
+      await controller.dispose();
+      return;
+    }
+
+    setState(() {
+      _controller = controller;
+      _cameraIndex = index;
+      _zoom = _minZoom;
+      _readiness = CameraReadiness.ready;
+    });
+  }
+
+  bool get _isFrontCamera =>
+      _cameras.isNotEmpty &&
+      _cameras[_cameraIndex].lensDirection == CameraLensDirection.front;
+
+  Future<void> _switchCamera() async {
+    if (_cameras.length < 2 || _isRecording) return;
+    HapticFeedback.selectionClick();
+    await _startController((_cameraIndex + 1) % _cameras.length);
+  }
+
+  Future<void> _cycleFlash() async {
+    const order = [FlashMode.auto, FlashMode.always, FlashMode.off];
+    final next = order[(order.indexOf(_flashMode) + 1) % order.length];
+    try {
+      await _controller?.setFlashMode(next);
+      if (mounted) setState(() => _flashMode = next);
+    } on CameraException {
+      _notify('Flash is not available on this camera.');
+    }
+  }
+
+  Future<void> _setZoom(double value) async {
+    final clamped = value.clamp(_minZoom, _maxZoom).toDouble();
+    if ((clamped - _zoom).abs() < 0.01) return;
+    try {
+      await _controller?.setZoomLevel(clamped);
+      if (mounted) setState(() => _zoom = clamped);
+    } on CameraException {
+      // Zoom is unsupported on this sensor.
+    }
+  }
+
+  Future<void> _focusAt(Offset relative) async {
+    final controller = _controller;
+    if (controller == null) return;
+    try {
+      await controller.setFocusPoint(relative);
+      await controller.setExposurePoint(relative);
+      HapticFeedback.selectionClick();
+    } on CameraException {
+      // Tap-to-focus unsupported on this sensor.
+    }
+  }
+
+  Future<void> _capturePhoto() async {
+    final controller = _controller;
+    if (controller == null || _isCapturing || _isRecording) return;
+
+    setState(() => _isCapturing = true);
+    HapticFeedback.mediumImpact();
+    try {
+      final file = await controller.takePicture();
+      _openPreview(CaptureDraft(
+        path: file.path,
+        isVideo: false,
+        isFrontCamera: _isFrontCamera,
+      ));
+    } on CameraException catch (e) {
+      _notify(e.description ?? 'The photo could not be captured.');
+    } finally {
+      if (mounted) setState(() => _isCapturing = false);
+    }
+  }
+
+  Future<void> _startRecording() async {
+    final controller = _controller;
+    if (controller == null || _isRecording) return;
+    try {
+      await controller.startVideoRecording();
+      HapticFeedback.heavyImpact();
+      if (!mounted) return;
+      setState(() {
+        _isRecording = true;
+        _recordDuration = Duration.zero;
+      });
+      _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() =>
+            _recordDuration = _recordDuration + const Duration(seconds: 1));
+      });
+    } on CameraException catch (e) {
+      _notify(e.description ?? 'Recording could not be started.');
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    final controller = _controller;
+    if (controller == null || !_isRecording) return;
+    _recordTimer?.cancel();
+    try {
+      final file = await controller.stopVideoRecording();
+      if (mounted) setState(() => _isRecording = false);
+      _openPreview(CaptureDraft(
+        path: file.path,
+        isVideo: true,
+        isFrontCamera: _isFrontCamera,
+      ));
+    } on CameraException catch (e) {
+      if (mounted) setState(() => _isRecording = false);
+      _notify(e.description ?? 'Recording could not be saved.');
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    try {
+      final picked = await ImagePicker().pickMedia(imageQuality: 90);
+      if (picked == null) return;
+      final isVideo = picked.mimeType?.startsWith('video') ??
+          picked.path.toLowerCase().endsWith('.mp4');
+      _openPreview(CaptureDraft(path: picked.path, isVideo: isVideo));
+    } catch (_) {
+      _notify('The gallery could not be opened.');
+    }
+  }
+
+  void _openPreview(CaptureDraft draft) {
+    if (!mounted) return;
+    context.push('/capture', extra: draft);
+  }
+
+  void _notify(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
+    final appColors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    return Container(
+      color: appColors.mediaScrim,
+      child: Stack(
         fit: StackFit.expand,
         children: [
-          _buildCameraPreview(),
-          _buildOverlay(),
-          _buildTopControls(),
-          _buildBottomControls(),
-          _buildFilterSelector(),
+          _buildSurface(),
+          if (_readiness == CameraReadiness.ready)
+            CameraControls(
+              isRecording: _isRecording,
+              isCapturing: _isCapturing,
+              recordDuration: _recordDuration,
+              flashMode: _flashMode,
+              canSwitchCamera: _cameras.length > 1,
+              onFlashTap: _cycleFlash,
+              onSwitchCamera: _switchCamera,
+              onGalleryTap: _pickFromGallery,
+              onCaptureTap: _capturePhoto,
+              onRecordStart: _startRecording,
+              onRecordStop: _stopRecording,
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildCameraPreview() {
-    if (_permissionDenied) {
-      return Container(
-        color: Colors.black,
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.camera_alt_outlined, size: 56, color: Colors.white54),
-                const SizedBox(height: 16),
-                const Text(
-                  'SwiftSnap needs camera access',
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Enable camera permission in Settings to take snaps.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70),
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () => openAppSettings(),
-                  child: const Text('Open Settings'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    final c = _controller;
-    if (_initializing || c == null || !c.value.isInitialized) {
-      return Container(
-        color: Colors.black,
-        child: const Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        ),
-      );
-    }
-
-    // Full-bleed live preview (cover the whole screen without distortion).
-    return ClipRect(
-      child: OverflowBox(
-        alignment: Alignment.center,
-        child: FittedBox(
-          fit: BoxFit.cover,
+  Widget _buildSurface() {
+    switch (_readiness) {
+      case CameraReadiness.initialising:
+        return const Center(
           child: SizedBox(
-            width: c.value.previewSize?.height ?? MediaQuery.of(context).size.width,
-            height: c.value.previewSize?.width ?? MediaQuery.of(context).size.height,
-            child: CameraPreview(c),
+            width: AppTheme.iconXl,
+            height: AppTheme.iconXl,
+            child: CircularProgressIndicator(strokeWidth: AppTheme.borderThick),
           ),
-        ),
-      ),
-    );
+        );
+      case CameraReadiness.denied:
+        return CameraPermissionView(
+          title: 'Camera access is off',
+          message:
+              'SwiftSnap needs the camera to capture snaps, stories and reels.',
+          actionLabel: 'Allow camera',
+          onAction: _bootstrap,
+        );
+      case CameraReadiness.permanentlyDenied:
+        return CameraPermissionView(
+          title: 'Camera access is blocked',
+          message:
+              'Camera access was permanently denied. Enable it in your device settings to continue.',
+          actionLabel: 'Open settings',
+          onAction: openAppSettings,
+        );
+      case CameraReadiness.failed:
+        return CameraPermissionView(
+          title: 'Camera unavailable',
+          message: _failureMessage,
+          actionLabel: 'Retry',
+          onAction: _bootstrap,
+        );
+      case CameraReadiness.ready:
+        return _buildPreview();
+    }
   }
 
-  Widget _buildOverlay() {
-    return IgnorePointer(
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.black.withOpacity(0.5),
-              Colors.transparent,
-              Colors.transparent,
-              Colors.black.withOpacity(0.7),
-            ],
-            stops: const [0.0, 0.15, 0.75, 1.0],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-      ),
-    );
-  }
+  /// Renders the live preview at the sensor's real aspect ratio, scaled to
+  /// cover the viewport without stretching, so framing stays consistent
+  /// between what is previewed and what is captured.
+  Widget _buildPreview() {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) {
+      return const SizedBox.shrink();
+    }
 
-  Widget _buildTopControls() {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildControlButton(
-                icon: Icons.close_rounded,
-                onTap: () => Navigator.pop(context),
-              ),
-              Row(
-                children: [
-                  _buildControlButton(
-                    icon: _flash == FlashMode.off
-                        ? Icons.flash_off_rounded
-                        : _flash == FlashMode.always
-                            ? Icons.flash_on_rounded
-                            : Icons.flash_auto_rounded,
-                    onTap: _toggleFlash,
-                    isActive: _flash != FlashMode.off,
-                  ),
-                  const SizedBox(width: 12),
-                  _buildControlButton(
-                    icon: Icons.music_note_rounded,
-                    onTap: () => HapticFeedback.lightImpact(),
-                  ),
-                  const SizedBox(width: 12),
-                  _buildControlButton(
-                    icon: Icons.timer_outlined,
-                    onTap: () => HapticFeedback.lightImpact(),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final previewRatio = controller.value.aspectRatio;
 
-  Widget _buildControlButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    bool isActive = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: isActive ? SwiftSnapTheme.primaryPurple : Colors.black.withOpacity(0.4),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
-        ),
-        child: Icon(icon, color: Colors.white, size: 22),
-      ),
-    );
-  }
-
-  Widget _buildBottomControls() {
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _buildGalleryButton(),
-              _buildCaptureButton(),
-              _buildSwitchCameraButton(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGalleryButton() {
-    return GestureDetector(
-      onTap: () => HapticFeedback.lightImpact(),
-      child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: SwiftSnapTheme.surfaceColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
-        ),
-        child: const Icon(Icons.photo_library_rounded, color: Colors.white, size: 26),
-      ),
-    );
-  }
-
-  Widget _buildCaptureButton() {
-    return GestureDetector(
-      onTap: _takePhoto,
-      child: AnimatedBuilder(
-        animation: _pulseController,
-        builder: (context, child) {
-          return Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 4),
-            ),
-            padding: const EdgeInsets.all(4),
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: SwiftSnapTheme.primaryGradient,
-                shape: BoxShape.circle,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSwitchCameraButton() {
-    return GestureDetector(
-      onTap: _switchCamera,
-      child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: SwiftSnapTheme.surfaceColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
-        ),
-        child: Icon(
-          _isFrontCamera ? Icons.camera_rear_rounded : Icons.camera_front_rounded,
-          color: Colors.white,
-          size: 26,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterSelector() {
-    return Positioned(
-      bottom: 140,
-      left: 0,
-      right: 0,
-      child: SizedBox(
-        height: 80,
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          physics: const BouncingScrollPhysics(),
-          itemCount: _filters.length,
-          itemBuilder: (context, index) {
-            final filter = _filters[index];
-            final isSelected = _selectedFilter == index;
-            return GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                setState(() => _selectedFilter = index);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 64,
-                margin: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(
-                  color: isSelected ? filter.color.withOpacity(0.2) : Colors.black.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isSelected ? filter.color : Colors.white.withOpacity(0.1),
-                    width: isSelected ? 2 : 1,
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(filter.icon,
-                        color: isSelected ? filter.color : Colors.white.withOpacity(0.6), size: 24),
-                    const SizedBox(height: 6),
-                    Text(
-                      filter.name,
-                      style: TextStyle(
-                        color: isSelected ? filter.color : Colors.white.withOpacity(0.6),
-                        fontSize: 10,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onScaleStart: (_) => _baseZoom = _zoom,
+          onScaleUpdate: (details) {
+            if (details.pointerCount < 2) return;
+            _setZoom(_baseZoom * details.scale);
           },
-        ),
-      ),
+          onTapUp: (details) {
+            final local = details.localPosition;
+            _focusAt(Offset(
+              (local.dx / constraints.maxWidth).clamp(0.0, 1.0),
+              (local.dy / constraints.maxHeight).clamp(0.0, 1.0),
+            ));
+          },
+          child: ClipRect(
+            child: OverflowBox(
+              maxWidth: double.infinity,
+              maxHeight: double.infinity,
+              alignment: Alignment.center,
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  height: constraints.maxWidth * previewRatio,
+                  child: CameraPreview(controller),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
-}
-
-class FilterEffect {
-  final String name;
-  final IconData icon;
-  final Color color;
-
-  FilterEffect({required this.name, required this.icon, required this.color});
 }

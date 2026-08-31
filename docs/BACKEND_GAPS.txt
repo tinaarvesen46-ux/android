@@ -1,0 +1,145 @@
+SWIFTSNAP - BACKEND GAP REPORT
+==============================
+
+Every client feature that cannot function until backend work exists.
+Nothing below is faked in the app: each one surfaces a real error, an empty
+state, or a plainly worded "not available" message today.
+
+
+1. SETTINGS SYNC
+FEATURE            Server-side preference storage and enforcement
+SCREEN             lib/screens/settings/*
+ENDPOINT           GET /settings  ·  PATCH /settings
+METHOD             GET, PATCH
+REQUEST            PATCH { key: value } - flat, dot-namespaced keys
+RESPONSE           { key: value, ... }
+AUTH               bearer
+DATABASE           user_settings(user_id, key, value, updated_at)
+                   unique(user_id, key)
+REALTIME           none
+QUEUE/REDIS        cache the map per user; invalidate on PATCH
+WHY INSUFFICIENT   Preferences persist locally only. A reinstall or a second
+                   device loses them, and privacy flags must be enforced in
+                   server queries, not by the client.
+IMPLEMENTATION     Endpoint + enforcement of privacy keys wherever profile,
+                   story, map and message visibility is resolved.
+
+
+2. REEL COMMENTS AND SHARES
+FEATURE            Commenting on and sharing a reel
+SCREEN             lib/screens/reels_screen.dart
+ENDPOINT           GET/POST /spotlight/{id}/comments
+                   POST /spotlight/{id}/share
+REQUEST            POST { body }
+RESPONSE           paginated { id, user{}, body, created_at }
+AUTH               bearer
+DATABASE           spotlight_comments, spotlight_shares
+REALTIME           optional CommentAdded on the reel channel
+WHY INSUFFICIENT   Only like and save exist. The client states that comments
+                   are unavailable rather than showing an inert button.
+IMPLEMENTATION     Both endpoints plus counters on the reel payload.
+
+
+3. SEND-TO PICKER FOR A CAPTURE
+FEATURE            Sending a fresh capture straight into a conversation
+SCREEN             lib/screens/capture_preview_screen.dart
+ENDPOINT           GET /conversations?for=share  (lightweight recipient list)
+RESPONSE           [{ id, participant{}, is_group, group_name? }]
+AUTH               bearer
+WHY INSUFFICIENT   Publishing a snap into a chat needs a conversation id. The
+                   preview screen has no recipient source, so Send To
+                   currently redirects the user to the chat composer.
+IMPLEMENTATION     Recipient endpoint; the client already has the publish call.
+
+
+4. MAP PLACE SEARCH
+FEATURE            Searching places on the map
+SCREEN             lib/screens/map_screen.dart
+ENDPOINT           GET /map/search?q=   (server-side geocoding proxy)
+RESPONSE           [{ name, latitude, longitude, kind }]
+AUTH               bearer
+WHY INSUFFICIENT   Geocoding requires a provider key that must never ship in
+                   the app binary. Tiles are keyless OSM; search is not.
+IMPLEMENTATION     Proxy route holding the provider key on the VPS.
+
+
+5. STORY AUDIENCE (CUSTOM LISTS)
+FEATURE            Choosing who sees a story
+SCREEN             capture preview -> My Story; Settings -> Story
+ENDPOINT           GET/PUT /stories/audience { audience, user_ids[] }
+DATABASE           story_audiences(user_id, audience, member_ids)
+WHY INSUFFICIENT   The client can only post audience=friends.
+IMPLEMENTATION     Audience persistence + filtering in GET /stories.
+
+
+6. CREATOR EARNINGS
+FEATURE            Creator revenue and payouts
+SCREEN             lib/screens/creator_panel_screen.dart
+ENDPOINT           GET /creator/overview  ·  GET /creator/payouts
+RESPONSE           { balance, currency, views, engagement_rate, period,
+                     payouts[] }
+AUTH               bearer
+DATABASE           creator_earnings, creator_payouts
+WHY INSUFFICIENT   No revenue figure is ever invented client-side. The panel
+                   shows an error or empty state until this responds.
+
+
+7. SUBSCRIPTION (SWIFT+)
+FEATURE            Premium entitlement
+SCREEN             lib/screens/swift_plus_screen.dart
+ENDPOINT           GET /subscription
+                   POST /subscription/verify { platform, receipt }
+AUTH               bearer
+EXTERNAL           App Store / Play billing must be reconciled server-side.
+WHY INSUFFICIENT   The client cannot grant entitlements; receipts must be
+                   validated against the store from the VPS.
+
+
+8. AVATAR RENDERING
+FEATURE            SwiftSnap-native avatar image
+SCREEN             lib/screens/avatar_studio_screen.dart
+ENDPOINT           POST /users/me/avatar { config } -> { avatar_url }
+DATABASE           user_avatars(user_id, config json, rendered_url)
+QUEUE              render job producing a PNG at 512px
+WHY INSUFFICIENT   The client stores the chosen configuration but cannot
+                   rasterise a shareable image.
+
+
+9. DEVICE REGISTRATION / PUSH
+ENDPOINT           POST /devices { token, platform, locale, app_version }
+                   DELETE /devices/{token}
+See docs/PUSH.txt for ownership rules and required credentials.
+
+
+10. WEBRTC CALL SIGNALLING
+See docs/WEBRTC.txt. No calling UI ships until those routes and the coturn
+credential endpoint exist.
+
+
+11. REALTIME AUTH ENDPOINT
+ENDPOINT           POST /broadcasting/auth   (Reverb private channel auth)
+                   GET  /realtime/config -> { key, host, port, scheme }
+WHY INSUFFICIENT   Without these the client cannot subscribe to private
+                   conversation or presence channels, so chat is
+                   request/response only today.
+
+
+12. SCREENSHOT EVENTS
+ENDPOINT           POST /conversations/{id}/screenshot { message_id? }
+REALTIME           ScreenshotTaken on the conversation channel
+PLATFORM           Detection is OS-limited: reliable on iOS, partial on
+                   Android. Requires a platform channel in the client.
+
+
+13. DISCOVER ARTICLE BODY
+SCREEN             lib/screens/article_screen.dart
+ENDPOINT           GET /discover/{id} -> { body_html | blocks[] }
+WHY INSUFFICIENT   Only list metadata is available, so the detail screen
+                   states plainly that the body is not yet returned.
+
+
+14. ACCOUNT DELETION RE-AUTHENTICATION
+SCREEN             Settings -> Account
+ENDPOINT           POST /users/me/delete { password }
+WHY INSUFFICIENT   The re-authentication rules and grace period are undefined,
+                   so the client cannot present an accurate confirmation flow.

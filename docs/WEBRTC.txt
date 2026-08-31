@@ -1,0 +1,63 @@
+SWIFTSNAP - WEBRTC CALLING CONTRACT
+===================================
+
+STATUS: NOT IMPLEMENTED in the client. No calling UI, no signalling, no media
+tracks. This document defines the contract both sides must build to.
+Stack is fixed: flutter_webrtc + Laravel signalling + Reverb + self-hosted
+coturn. No Agora, Twilio, Vonage or Daily.
+
+
+ICE CONFIGURATION
+  GET /calls/ice   AUTH bearer
+  -> { ice_servers: [
+         { urls: ["stun:turn.swiftsnap.app:3478"] },
+         { urls: ["turn:turn.swiftsnap.app:3478?transport=udp",
+                  "turns:turn.swiftsnap.app:5349?transport=tcp"],
+           username: "<unix_ttl>:<user_id>",
+           credential: "<hmac_base64>" }
+       ],
+       ttl: 3600 }
+  Short-lived coturn REST credentials (static-auth-secret). The secret never
+  leaves the VPS. The client refetches when ttl expires.
+
+
+SIGNALLING (HTTP intent, Reverb delivery)
+  POST /calls                 { callee_id, type: audio|video }
+                              -> { call_id, status: ringing }
+  POST /calls/{id}/offer      { sdp }
+  POST /calls/{id}/answer     { sdp }
+  POST /calls/{id}/ice        { candidate, sdp_mid, sdp_m_line_index }
+  POST /calls/{id}/decline    -> status: declined
+  POST /calls/{id}/end        -> status: ended, duration
+  GET  /calls/{id}            -> current state (recovery after restart)
+
+
+REVERB EVENTS on private-call.{callId}
+(and private-user.{id} for the incoming ring)
+  CallOffered   { call_id, caller{}, type }   -> show incoming UI
+  CallAnswered  { sdp }                       -> setRemoteDescription
+  IceCandidate  { candidate, sdp_mid, sdp_m_line_index }
+  CallDeclined  { reason }
+  CallEnded     { reason, duration }
+
+
+STATE MACHINE
+  idle -> dialling -> ringing -> connecting -> connected -> ended
+  Any state may go to `failed`. Terminal states release tracks, close the peer
+  connection, unsubscribe the channel and restore audio routing.
+
+
+TIMEOUTS AND RECOVERY
+  Ring timeout      45 s unanswered -> CallEnded(reason: timeout)
+  ICE timeout       20 s without a connected pair -> restart ICE once, then
+                    fail with a real error.
+  Reconnect         On network change, ICE restart with a fresh offer; if
+                    signalling is unreachable for 30 s, end the call.
+  App backgrounded  Requires a foreground service (Android) and CallKit /
+                    PushKit (iOS) - both are backend-assisted and not yet
+                    provisioned.
+
+
+PERMISSIONS
+  Camera and microphone are already declared for capture and are reused by
+  calling; no additional manifest or plist entries are needed.

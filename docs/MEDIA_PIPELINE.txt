@@ -1,0 +1,59 @@
+SWIFTSNAP - MEDIA PIPELINE CONTRACT
+===================================
+
+FLOW
+  camera_screen (camera package, real sensor)
+    -> CaptureDraft { path, isVideo, isFrontCamera }
+    -> capture_preview_screen (user reviews; nothing is published yet)
+    -> user explicitly picks a destination
+    -> MediaRepository.uploadCapture   (POST /media, multipart)
+    -> MediaRepository.publish         (story | reels | memories | chat)
+    -> backend persists and returns a media URL
+    -> the URL is rendered by the story viewer / reels / memories / chat
+
+
+CAPTURE
+  Photo   CameraController.takePicture - tap the shutter.
+  Video   startVideoRecording / stopVideoRecording - hold the shutter.
+  Preview is cover-scaled to the SENSOR aspect ratio, never stretched, so
+  framing matches the saved file. Front-camera stills are un-mirrored in the
+  preview screen to match what the user framed.
+  Gallery import uses image_picker and produces the same CaptureDraft.
+
+
+UPLOAD  POST /media
+  MULTIPART FIELDS  file (binary, required) · kind = photo|video (required)
+  MIME              image/jpeg, image/png, image/heic, image/webp
+                    video/mp4, video/quicktime
+  MAX SIZE          25 MB photo · 150 MB video (server must enforce)
+  SUCCESS           201 { id, media_url, thumbnail_url? }
+  FAILURES          413 too large · 415 unsupported type · 422 invalid ·
+                    5xx server. All are shown verbatim with a Retry action.
+  PROGRESS          Dio reports sent/total; the UI shows a busy state.
+                    Cancellation requires a CancelToken and is not wired yet.
+  AUTHORIZATION     bearer; the upload is owned by the authenticated user.
+  QUEUE             transcoding and thumbnail generation belong in a queued
+                    job; the client tolerates thumbnail_url arriving later.
+
+
+PUBLISH (only after the user chooses)
+  My Story   POST /stories   { media_id, audience }
+  Reels      POST /spotlight { media_id, caption?, hashtags[]? }
+  Memories   POST /memories  { media_id }
+  Send To    POST /conversations/{id}/messages { type: snap, media_id }
+
+
+MEDIA URL REQUIREMENTS
+  Absolute HTTPS. Publicly readable, or signed with a TTL that outlives a
+  session. Videos must be range-request friendly for streaming. A poster
+  thumbnail_url is required for every video so lists stay light.
+
+
+FAILURE STATES (all real, none simulated)
+  * Upload fails            -> error text + Retry, draft is preserved.
+  * Publish fails           -> error text + Retry, nothing is marked posted.
+  * Media URL 404 / expired -> broken-media placeholder in the grid or feed.
+  * Web platform            -> capture publishing is refused explicitly,
+                               because the browser path is an object URL and
+                               not a multipart file.
+  A success message is shown ONLY after a 2xx from the publish call.

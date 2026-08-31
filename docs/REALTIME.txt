@@ -1,0 +1,83 @@
+SWIFTSNAP - REALTIME (LARAVEL REVERB) CONTRACT
+==============================================
+
+STATUS: the client is structured for realtime but does NOT yet open a socket.
+Chat, notifications and presence are request/response today. This document is
+the contract the socket layer will implement against.
+
+CONNECTION
+  Driver     Laravel Reverb (Pusher protocol)
+  Auth       POST /broadcasting/auth with the Sanctum bearer token
+  Params     key, host, port, scheme delivered by GET /realtime/config so the
+             app never hardcodes infrastructure.
+
+
+CHANNEL  private-conversation.{id}
+  AUTHENTICATION  member of the conversation
+  SUBSCRIBER      chat detail screen (subscribe on open, unsubscribe on pop)
+
+  EVENT     MessageSent
+  PAYLOAD   { message: { id, sender_id, type, content|media_url, created_at } }
+  TRIGGER   POST /conversations/{id}/messages
+  CLIENT    append if id unseen, otherwise ignore (dedupe by id)
+
+  EVENT     MessageRead
+  PAYLOAD   { message_ids[], user_id }
+  TRIGGER   POST /conversations/{id}/read
+  CLIENT    mark read ticks
+
+  EVENT     UserTyping
+  PAYLOAD   { user_id, is_typing }
+  TRIGGER   POST /conversations/{id}/typing
+  CLIENT    transient indicator, auto-clears after 4 s
+
+  EVENT     ReactionAdded
+  PAYLOAD   { message_id, user_id, emoji }
+  CLIENT    attach reaction to the bubble
+
+  EVENT     MessageDeleted
+  PAYLOAD   { message_id }
+  CLIENT    remove from the thread
+
+  EVENT     ScreenshotTaken
+  PAYLOAD   { user_id, message_id? }
+  CLIENT    insert a system row in the thread
+
+
+CHANNEL  private-user.{id}
+  AUTHENTICATION  owner only
+  SUBSCRIBER      app shell (subscribe after auth, dispose on logout)
+
+  EVENT     NotificationCreated
+  PAYLOAD   { notification: { id, type, title, body, actor{}?, target_id? } }
+  CLIENT    badge increment + inbox insert
+
+  EVENT     FriendRequestReceived / FriendRequestAccepted
+  PAYLOAD   { user{} } or { request{} }
+  CLIENT    refresh the friends and requests lists
+
+  EVENT     ConversationUpdated
+  PAYLOAD   { conversation{} }
+  CLIENT    reorder the chat list
+
+
+CHANNEL  presence-friends.{id}
+  AUTHENTICATION  owner only; members are the user's friends
+  EVENTS          here / joining / leaving
+  CLIENT          online dots, map freshness
+
+
+CHANNEL  private-call.{callId}
+  EVENTS          CallOffered, CallAnswered, CallDeclined, CallEnded,
+                  IceCandidate
+  See docs/WEBRTC.txt
+
+
+CLIENT RULES (mandatory when the socket layer lands)
+  * Subscribe on screen mount; unsubscribe and dispose on unmount.
+  * Deduplicate by server id; never trust arrival order.
+  * Reconcile after reconnect by refetching the affected list - a socket gap
+    must never leave stale state on screen.
+  * Exponential backoff on reconnect; surface a non-blocking offline bar.
+  * Realtime is an accelerator, never the only path: every screen must still
+    work with plain HTTP refresh.

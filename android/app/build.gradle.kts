@@ -15,23 +15,24 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "app.SwiftSnap"
+    namespace = "com.primio.swiftsnap.pkvtsv"
     compileSdk = 36
-    ndkVersion = "28.2.13676358"
+    ndkVersion = "27.3.13750724"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "app.SwiftSnap"
+        applicationId = "com.primio.swiftsnap.pkvtsv"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 26 // Android 8.0
@@ -42,40 +43,26 @@ android {
 
     signingConfigs {
         create("release") {
-            // Only wire up the release signing config when key.properties is
-            // present.  On CI (Codemagic) this file is provided via a build
-            // trigger step or an "Encrypted files" upload — if it's absent we
-            // deliberately skip the config so `flutter build apk --debug`
-            // still succeeds without secrets in the repo.
-            if (keystorePropertiesFile.exists()) {
-                keyAlias      = keystoreProperties["keyAlias"] as String
-                keyPassword   = keystoreProperties["keyPassword"] as String
-                storeFile     = keystoreProperties["storeFile"]?.let { file(it) }
-                storePassword = keystoreProperties["storePassword"] as String
-            }
+            keyAlias = keystoreProperties["keyAlias"] as String
+            keyPassword = keystoreProperties["keyPassword"] as String
+            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+            storePassword = keystoreProperties["storePassword"] as String
         }
     }
 
     buildTypes {
         release {
-            // Use the release signing config only when it was wired up above;
-            // otherwise fall back to the debug key so `flutter run --release`
-            // and unsigned CI builds still complete.
-            signingConfig = if (keystorePropertiesFile.exists())
-                signingConfigs.getByName("release")
-            else
-                signingConfigs.getByName("debug")
+            // TODO: Add your own signing config for the release build.
+            // Signing with the debug keys for now, so `flutter run --release` works.
+            signingConfig = signingConfigs.getByName("release")
         }
+    }
+
+    dependencies{
+        coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
     }
 }
 
 flutter {
     source = "../.."
-}
-
-dependencies {
-    // Required by flutter_local_notifications (uses java.time.*) when
-    // targeting minSdk < 26 semantics on old devices; also enabled here for
-    // any other plugin that relies on backported JDK 11+ APIs on Android.
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

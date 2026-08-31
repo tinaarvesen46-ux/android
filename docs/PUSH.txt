@@ -1,0 +1,54 @@
+SWIFTSNAP - PUSH NOTIFICATION ARCHITECTURE
+==========================================
+
+STATUS: NOT IMPLEMENTED in the client. In-app notifications are fetched from
+the SwiftSnap API and render from real data; OS-level delivery to a
+backgrounded or terminated app is not wired.
+
+
+OWNERSHIP (non-negotiable)
+  Laravel owns notification generation, persistence, preferences, routing and
+  all business logic. FCM/APNs are ONLY the last-mile OS transport.
+  The chat database, notification database, realtime messaging and business
+  rules never move into Firebase.
+
+
+DEVICE REGISTRATION
+  POST   /devices  { token, platform: android|ios, locale, app_version }
+         Called after sign-in and on every token rotation. Idempotent.
+  DELETE /devices/{token}   Called on sign-out.
+  DATABASE devices(user_id, token unique, platform, locale, last_seen_at)
+
+
+DELIVERY
+  Laravel queues a job -> resolves the user's devices -> sends via FCM
+  (Android) / APNs (iOS). Payload stays minimal and never carries content the
+  recipient is not entitled to:
+    { type, title, body, target_id, notification_id }
+  The client uses type + target_id to deep link:
+    message      -> /chat/{target_id}
+    friend_request -> /friends
+    reel|like|comment -> /user/{actor_id}
+    system       -> /notifications
+
+
+PREFERENCES
+  The toggles under Settings -> Notifications are the source of truth and must
+  be enforced server-side before a push is queued. They currently persist
+  locally only - see gap 1 in docs/BACKEND_GAPS.txt.
+
+
+CREDENTIALS THE BACKEND DEVELOPER MUST PROVIDE
+  * Firebase project + google-services.json (Android) and the FCM v1
+    service-account JSON held on the VPS.
+  * APNs auth key (.p8), key id, team id, bundle id
+    com.primio.swiftsnap.pkvtsv.
+  * iOS push entitlement enabled on the provisioning profile.
+  None of these can be produced from the Flutter side.
+
+
+CLIENT WORK REQUIRED WHEN CREDENTIALS EXIST
+  firebase_messaging + flutter_local_notifications, POST /devices on login,
+  Android 13+ POST_NOTIFICATIONS runtime request (the permission is already
+  declared), foreground/background/terminated handlers, and deep linking
+  through the existing router.
