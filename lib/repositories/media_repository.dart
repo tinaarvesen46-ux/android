@@ -53,13 +53,14 @@ class MediaRepository {
     required String mediaId,
     String? caption,
     String? conversationId,
+    String? storyAudience,
   }) =>
       guardApi(() async {
         switch (destination) {
           case CaptureDestination.story:
             await _api.post('/stories', data: {
               'media_id': mediaId,
-              'audience': 'friends',
+              'audience': storyAudience ?? 'friends',
             });
             break;
           case CaptureDestination.reels:

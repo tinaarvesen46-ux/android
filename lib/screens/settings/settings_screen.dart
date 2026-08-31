@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../theme/theme.dart';
@@ -8,34 +9,71 @@ import '../../widgets/common/app_top_bar.dart';
 import '../../widgets/common/settings_rows.dart';
 import 'settings_catalog.dart';
 
-class SettingsScreen extends StatelessWidget {
+const _dismiss2faNudgeKey = 'dismissed_2fa_nudge';
+
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _nudgeDismissed = true;
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      if (mounted) {
+        setState(
+          () => _nudgeDismissed = prefs.getBool(_dismiss2faNudgeKey) ?? false,
+        );
+      }
+    });
+  }
+
+  Future<void> _dismissNudge() async {
+    setState(() => _nudgeDismissed = true);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_dismiss2faNudgeKey, true);
+  }
+
   Future<void> _logout(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+    final choice = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Log out?'),
-        content: const Text('You will need to sign in again to use SwiftSnap.'),
+        content: const Text(
+          'You can save this account so it appears on the sign-in screen for one-tap access next time.',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
+            onPressed: () => Navigator.of(dialogContext).pop(null),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop('logout'),
             child: const Text('Log out'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop('remember'),
+            child: const Text('Save & log out'),
           ),
         ],
       ),
     );
-    if (confirmed != true || !context.mounted) return;
-    await context.read<AuthProvider>().logout();
+    if (choice == null || !context.mounted) return;
+    await context.read<AuthProvider>().logout(remember: choice == 'remember');
     if (context.mounted) context.go('/login');
   }
 
   @override
   Widget build(BuildContext context) {
+    final twoFactorOn =
+        context.watch<AuthProvider>().currentUser?.twoFactorEnabled ?? false;
+    final showNudge = !twoFactorOn && !_nudgeDismissed;
+
     return Scaffold(
       body: Column(
         children: [
@@ -44,6 +82,47 @@ class SettingsScreen extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.only(bottom: AppTheme.spacingHuge),
               children: [
+                if (showNudge)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppTheme.spacingLg,
+                      AppTheme.spacingMd,
+                      AppTheme.spacingLg,
+                      0,
+                    ),
+                    child: Material(
+                      key: const Key('two-factor-nudge-banner'),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                        onTap: () => context.push('/settings-2fa'),
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppTheme.spacingMd),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.shield_outlined),
+                              const SizedBox(width: AppTheme.spacingMd),
+                              const Expanded(
+                                child: Text(
+                                  'Turn on two-factor authentication to keep your account safer.',
+                                ),
+                              ),
+                              IconButton(
+                                key: const Key('two-factor-nudge-dismiss'),
+                                icon: const Icon(Icons.close_rounded,
+                                    size: AppTheme.iconSm),
+                                onPressed: _dismissNudge,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 const SettingsGroupLabel(label: 'Account'),
                 SettingsNavigationRow(
                   icon: Icons.lock_reset_rounded,

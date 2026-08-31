@@ -2,16 +2,34 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import '../models/user.dart';
+import '../repositories/social_repository.dart';
 import '../services/auth_service.dart';
 import '../services/realtime_service.dart';
+import '../services/saved_accounts_store.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService;
   final RealtimeService _realtime;
+  final SocialRepository _social;
+  final SavedAccountsStore _savedAccounts = SavedAccountsStore();
 
-  AuthProvider({required AuthService authService, required RealtimeService realtimeService})
-      : _authService = authService,
-        _realtime = realtimeService;
+  AuthProvider({
+    required AuthService authService,
+    required RealtimeService realtimeService,
+    required SocialRepository socialRepository,
+  })  : _authService = authService,
+        _realtime = realtimeService,
+        _social = socialRepository {
+    unawaited(loadSavedAccounts());
+  }
+
+  List<SavedAccount> _savedAccountsList = const [];
+  List<SavedAccount> get savedAccounts => _savedAccountsList;
+
+  Future<void> loadSavedAccounts() async {
+    _savedAccountsList = await _savedAccounts.load();
+    notifyListeners();
+  }
 
   User? _currentUser;
   User? get currentUser => _currentUser;
@@ -113,15 +131,75 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
-  Future<void> logout() async {
-    await _authService.logout();
+  Future<void> logout({bool remember = false}) async {
+    final user = _currentUser;
+    if (remember && user != null) {
+      final token = await _authService.currentToken();
+      if (token != null) {
+        await _savedAccounts.upsert(SavedAccount(
+          userId: user.id,
+          username: user.username,
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+          token: token,
+        ));
+      }
+      await _authService.logoutKeepingToken();
+    } else {
+      await _authService.logout();
+    }
     _realtime.disconnect();
     _currentUser = null;
     notifyListeners();
+    unawaited(loadSavedAccounts());
   }
 
-  /// Called on app start when a stored session token already exists.
-  void resumeRealtimeSession() => unawaited(_realtime.connect());
+  /// Switches straight into a previously saved account using its real
+  /// stored Sanctum token — validated live against `/me` rather than
+  /// trusted blindly. Removes the account from the saved list if the
+  /// token was revoked (e.g. by a password change) so a stale entry never
+  /// lingers.
+  Future<bool> switchToSavedAccount(SavedAccount account) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    await _authService.switchToken(account.token);
+    try {
+      final user = await _social.fetchMe();
+      _currentUser = user;
+      _isLoading = false;
+      unawaited(_realtime.connect());
+      notifyListeners();
+      return true;
+    } catch (_) {
+      await _authService.logoutKeepingToken();
+      await _savedAccounts.remove(account.userId);
+      await loadSavedAccounts();
+      _isLoading = false;
+      _error = 'That session has expired. Please sign in again.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<void> removeSavedAccount(String userId) async {
+    await _savedAccounts.remove(userId);
+    await loadSavedAccounts();
+  }
+
+  /// Called on app start when a stored session token already exists —
+  /// hydrates the real current user (so 2FA/role state is accurate
+  /// immediately) and reconnects realtime.
+  Future<void> hydrateFromExistingSession() async {
+    unawaited(_realtime.connect());
+    try {
+      _currentUser = await _social.fetchMe();
+      notifyListeners();
+    } catch (_) {
+      // Token turned out to be invalid; leave currentUser null and let the
+      // next authenticated call surface the real 401 to the user.
+    }
+  }
 
   void clearError() {
     _error = null;

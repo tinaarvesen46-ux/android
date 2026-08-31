@@ -65,6 +65,7 @@ class SwiftSnapApp extends StatelessWidget {
           create: (ctx) => AuthProvider(
             authService: ctx.read<AuthService>(),
             realtimeService: ctx.read<RealtimeService>(),
+            socialRepository: ctx.read<SocialRepository>(),
           ),
         ),
         ChangeNotifierProvider<SettingsProvider>(

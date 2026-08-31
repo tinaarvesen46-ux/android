@@ -25,7 +25,9 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _resolve() async {
     final authenticated =
         await context.read<AuthService>().isAuthenticated();
-    if (authenticated) context.read<AuthProvider>().resumeRealtimeSession();
+    if (authenticated) {
+      await context.read<AuthProvider>().hydrateFromExistingSession();
+    }
     if (!mounted) return;
     context.go(authenticated ? '/camera' : '/login');
   }

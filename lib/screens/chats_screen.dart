@@ -5,9 +5,11 @@ import 'package:provider/provider.dart';
 import '../core/load_state.dart';
 import '../models/chat.dart';
 import '../models/story.dart';
+import '../models/user.dart';
 import '../providers/chats_provider.dart';
 import '../theme/theme.dart';
 import '../widgets/chats/chat_row.dart';
+import '../widgets/chats/friend_picker_sheet.dart';
 import '../widgets/chats/story_row.dart';
 import '../widgets/common/app_top_bar.dart';
 import '../widgets/common/async_state_view.dart';
@@ -95,6 +97,24 @@ class _ChatsScreenState extends State<ChatsScreen> {
     return result ?? false;
   }
 
+  Future<void> _openNewChat() async {
+    final selected = await showModalBottomSheet<List<User>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) =>
+          const FriendPickerSheet(multiSelect: false, title: 'New chat'),
+    );
+    if (selected == null || selected.isEmpty || !mounted) return;
+    final chats = context.read<ChatsProvider>();
+    final conversationId = await chats.startConversationWith(selected.first.id);
+    if (!mounted) return;
+    if (conversationId == null) {
+      _notify(chats.lastError ?? 'Could not start this chat.');
+      return;
+    }
+    context.push('/chat/$conversationId');
+  }
+
   void _notify(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -117,6 +137,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
           ),
           actions: [
             SnapIconButton(
+              icon: Icons.add_comment_rounded,
+              onTap: _openNewChat,
+            ),
+            SnapIconButton(
               icon: Icons.notifications_none_rounded,
               onTap: () => context.push('/notifications'),
             ),
@@ -136,8 +160,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
               emptyIcon: Icons.chat_bubble_outline_rounded,
               emptyTitle: 'No conversations yet',
               emptyMessage: 'Find friends to start chatting on SwiftSnap.',
-              emptyActionLabel: 'Find friends',
-              onEmptyAction: () => context.push('/friends'),
+              emptyActionLabel: 'New chat',
+              onEmptyAction: _openNewChat,
               onRetry: provider.loadConversations,
               builder: (conversations) => ListView.builder(
                 padding: EdgeInsets.zero,

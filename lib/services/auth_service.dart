@@ -111,6 +111,16 @@ class AuthService {
     }
   }
 
+  /// Clears the active session locally WITHOUT revoking the token on the
+  /// server — used when the user chooses to save the account for quick
+  /// switching. The real Sanctum token stays valid for a future
+  /// [switchToken] call.
+  Future<void> logoutKeepingToken() => _api.clearToken();
+
+  Future<String?> currentToken() => _api.getToken();
+
+  Future<void> switchToken(String token) => _api.setToken(token);
+
   Future<bool> isAuthenticated() async {
     final token = await _api.getToken();
     return token != null;
