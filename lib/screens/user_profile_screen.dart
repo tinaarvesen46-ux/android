@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/social.dart';
+import '../providers/chats_provider.dart';
 import '../providers/social_provider.dart';
 import '../theme/theme.dart';
 import '../widgets/common/app_top_bar.dart';
@@ -39,6 +41,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
+  Future<void> _messageFriend(UserProfile profile) async {
+    setState(() => _busy = true);
+    final chats = context.read<ChatsProvider>();
+    final conversationId = await chats.startConversationWith(widget.userId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (conversationId != null) {
+      context.push('/chat/$conversationId');
+    } else if (chats.lastError != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(chats.lastError!)));
     }
   }
 
@@ -115,6 +132,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   _RelationshipActions(
                     profile: profile,
                     busy: _busy,
+                    onMessage: () => _messageFriend(profile),
                     onAdd: () => _run(
                         () => provider.sendFriendRequest(widget.userId)),
                     onRemove: () =>
@@ -142,6 +160,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 class _RelationshipActions extends StatelessWidget {
   final UserProfile profile;
   final bool busy;
+  final VoidCallback onMessage;
   final VoidCallback onAdd;
   final VoidCallback onRemove;
   final VoidCallback onBlock;
@@ -151,6 +170,7 @@ class _RelationshipActions extends StatelessWidget {
   const _RelationshipActions({
     required this.profile,
     required this.busy,
+    required this.onMessage,
     required this.onAdd,
     required this.onRemove,
     required this.onBlock,
@@ -179,9 +199,15 @@ class _RelationshipActions extends StatelessWidget {
     }
 
     late final Widget primary;
+    late final Widget? secondary;
     switch (profile.relationship) {
       case RelationshipState.friends:
-        primary = OutlinedButton(
+        primary = ElevatedButton.icon(
+          onPressed: busy ? null : onMessage,
+          icon: const Icon(Icons.chat_bubble_rounded),
+          label: const Text('Message'),
+        );
+        secondary = OutlinedButton(
           onPressed: busy ? null : onRemove,
           child: const Text('Remove friend'),
         );
@@ -191,6 +217,7 @@ class _RelationshipActions extends StatelessWidget {
           onPressed: null,
           child: const Text('Request sent'),
         );
+        secondary = null;
         break;
       case RelationshipState.requestReceived:
         primary = Text(
@@ -199,17 +226,23 @@ class _RelationshipActions extends StatelessWidget {
               theme.textTheme.bodySmall?.copyWith(color: appColors.subtleText),
           textAlign: TextAlign.center,
         );
+        secondary = null;
         break;
       default:
         primary = ElevatedButton(
           onPressed: busy ? null : onAdd,
           child: const Text('Add friend'),
         );
+        secondary = null;
     }
 
     return Column(
       children: [
         primary,
+        if (secondary != null) ...[
+          const SizedBox(height: AppTheme.spacingMd),
+          secondary,
+        ],
         const SizedBox(height: AppTheme.spacingMd),
         OutlinedButton(
           onPressed: busy ? null : onBlock,

@@ -57,5 +57,7 @@
     <string>SwiftSnap saves captures to your photo library when you ask it to.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>SwiftSnap uses your location to show you and your friends on the map. Ghost Mode turns this off.</string>
+    <key>NSContactsUsageDescription</key>
+    <string>SwiftSnap can check your contacts against SwiftSnap accounts to suggest friends. Numbers are hashed before leaving your device.</string>
   </dict>
 </plist>

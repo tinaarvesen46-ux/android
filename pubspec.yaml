@@ -2,7 +2,7 @@ name: primio_app
 description: A Primio-generated Flutter app
 publish_to: 'none'
 
-version: 1.0.0+3
+version: 1.0.0+4
 
 environment:
   sdk: ^3.7.2
@@ -32,6 +32,11 @@ dependencies:
   geolocator: ^14.0.2
   flutter_map: ^8.1.1
   latlong2: ^0.9.1
+
+  # ─── Profile sharing / QR / contacts ───
+  share_plus: ^13.0.0
+  qr_flutter: ^4.1.0
+  flutter_contacts: ^2.3.1
 
   # Data persistence (cross-platform)
   shared_preferences: ^2.5.3

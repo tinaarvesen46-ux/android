@@ -44,6 +44,60 @@ class SettingsScreen extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.only(bottom: AppTheme.spacingHuge),
               children: [
+                const SettingsGroupLabel(label: 'Account'),
+                SettingsNavigationRow(
+                  icon: Icons.lock_reset_rounded,
+                  title: 'Password',
+                  onTap: () => context.push('/settings-password'),
+                ),
+                SettingsNavigationRow(
+                  icon: Icons.shield_outlined,
+                  title: 'Two-factor authentication',
+                  onTap: () => context.push('/settings-2fa'),
+                ),
+                SettingsNavigationRow(
+                  icon: Icons.phone_iphone_rounded,
+                  title: 'Mobile number',
+                  onTap: () => context.push('/settings-phone'),
+                ),
+                SettingsNavigationRow(
+                  icon: Icons.devices_other_rounded,
+                  title: 'Sessions',
+                  onTap: () => context.push('/settings-sessions'),
+                ),
+                SettingsNavigationRow(
+                  icon: Icons.verified_user_outlined,
+                  title: 'Account status',
+                  onTap: () => context.push('/settings-account-status'),
+                ),
+                SettingsNavigationRow(
+                  icon: Icons.flag_outlined,
+                  title: 'My Reports',
+                  onTap: () => context.push('/settings-my-reports'),
+                ),
+                const SettingsGroupLabel(label: 'Privacy'),
+                SettingsNavigationRow(
+                  icon: Icons.lock_outline_rounded,
+                  title: 'Privacy controls',
+                  onTap: () => context.push('/settings-privacy'),
+                ),
+                SettingsNavigationRow(
+                  icon: Icons.block_rounded,
+                  title: 'Blocked accounts',
+                  onTap: () => context.push('/settings-blocked'),
+                ),
+                const SettingsGroupLabel(label: 'Notifications'),
+                SettingsNavigationRow(
+                  icon: Icons.notifications_none_rounded,
+                  title: 'Notification preferences',
+                  onTap: () => context.push('/settings-notifications'),
+                ),
+                const SettingsGroupLabel(label: 'Your data'),
+                SettingsNavigationRow(
+                  icon: Icons.download_outlined,
+                  title: 'My Data',
+                  onTap: () => context.push('/settings-my-data'),
+                ),
                 const SettingsGroupLabel(label: 'Preferences'),
                 ...SettingsCatalog.sections.map(
                   (section) => SettingsNavigationRow(
@@ -53,11 +107,6 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
                 const SettingsGroupLabel(label: 'Safety'),
-                SettingsNavigationRow(
-                  icon: Icons.block_rounded,
-                  title: 'Blocked accounts',
-                  onTap: () => context.push('/settings-blocked'),
-                ),
                 SettingsNavigationRow(
                   icon: Icons.verified_user_outlined,
                   title: 'App permissions',
@@ -69,7 +118,12 @@ class SettingsScreen extends StatelessWidget {
                   title: 'About SwiftSnap',
                   onTap: () => context.push('/settings-about'),
                 ),
-                const SettingsGroupLabel(label: 'Account'),
+                const SettingsGroupLabel(label: 'Danger zone'),
+                SettingsActionRow(
+                  title: 'Delete account',
+                  destructive: true,
+                  onTap: () => context.push('/settings-delete-account'),
+                ),
                 SettingsActionRow(
                   title: 'Log out',
                   destructive: true,

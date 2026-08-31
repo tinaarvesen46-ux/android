@@ -41,6 +41,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     if (success) {
       context.go('/chats');
+    } else if (auth.pendingTwoFactorToken != null) {
+      context.push('/2fa-login');
     } else {
       setState(() => _error = auth.error ?? 'Sign in failed.');
     }

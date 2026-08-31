@@ -202,12 +202,24 @@ class SocialProvider extends ChangeNotifier {
     required String displayName,
     required String username,
     required String bio,
+    String? pronouns,
+    String? birthday,
+    String? location,
+    String? website,
+    String? phone,
+    String? privacyLevel,
   }) async {
     try {
       final user = await _social.updateProfile(
         displayName: displayName,
         username: username,
         bio: bio,
+        pronouns: pronouns,
+        birthday: birthday,
+        location: location,
+        website: website,
+        phone: phone,
+        privacyLevel: privacyLevel,
       );
       _me = LoadState<User>.success(user);
       notifyListeners();

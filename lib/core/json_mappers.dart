@@ -94,6 +94,7 @@ User userFromJson(Map<String, dynamic> json) => User(
       isVerified: asBool(json['is_verified']),
       role: asString(json['role'], fallback: 'user'),
       roleLabel: asString(json['role_label']),
+      twoFactorEnabled: asBool(json['two_factor_enabled']),
     );
 
 UserProfile userProfileFromJson(Map<String, dynamic> json) {

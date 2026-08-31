@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import 'providers/account_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/chats_provider.dart';
 import 'providers/feed_provider.dart';
@@ -9,6 +10,7 @@ import 'providers/map_provider.dart';
 import 'providers/memories_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/social_provider.dart';
+import 'repositories/account_repository.dart';
 import 'repositories/chat_repository.dart';
 import 'repositories/feed_repository.dart';
 import 'repositories/map_repository.dart';
@@ -56,6 +58,9 @@ class SwiftSnapApp extends StatelessWidget {
           create: (_) => MediaRepository(api: apiService),
         ),
         Provider<MapRepository>(create: (_) => MapRepository(api: apiService)),
+        Provider<AccountRepository>(
+          create: (_) => AccountRepository(api: apiService),
+        ),
         ChangeNotifierProvider<AuthProvider>(
           create: (ctx) => AuthProvider(
             authService: ctx.read<AuthService>(),
@@ -86,6 +91,10 @@ class SwiftSnapApp extends StatelessWidget {
         ChangeNotifierProvider<MemoriesProvider>(
           create: (ctx) =>
               MemoriesProvider(mediaRepository: ctx.read<MediaRepository>()),
+        ),
+        ChangeNotifierProvider<AccountProvider>(
+          create: (ctx) =>
+              AccountProvider(accountRepository: ctx.read<AccountRepository>()),
         ),
       ],
       child: MaterialApp.router(

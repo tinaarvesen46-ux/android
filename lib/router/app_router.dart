@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../models/discover_item.dart';
 import '../models/media.dart';
 import '../models/story.dart';
+import '../providers/auth_provider.dart';
 import '../screens/achievements_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/auth/splash_screen.dart';
+import '../screens/auth/two_factor_login_screen.dart';
 import '../screens/avatar_studio_screen.dart';
 import '../screens/camera_screen.dart';
 import '../screens/creator_panel_screen.dart';
@@ -17,6 +20,7 @@ import '../screens/chats_screen.dart';
 import '../screens/discover_detail_screen.dart';
 import '../screens/discover_screen.dart';
 import '../screens/edit_profile_screen.dart';
+import '../screens/find_friends_screen.dart';
 import '../screens/friends_screen.dart';
 import '../screens/home_shell.dart';
 import '../screens/map_screen.dart';
@@ -26,10 +30,20 @@ import '../screens/profile_screen.dart';
 import '../screens/reels_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/settings/about_screen.dart';
+import '../screens/settings/account_status_screen.dart';
 import '../screens/settings/blocked_users_screen.dart';
+import '../screens/settings/delete_account_screen.dart';
+import '../screens/settings/my_data_screen.dart';
+import '../screens/settings/my_reports_screen.dart';
+import '../screens/settings/notification_settings_screen.dart';
+import '../screens/settings/password_screen.dart';
 import '../screens/settings/permissions_screen.dart';
+import '../screens/settings/phone_number_screen.dart';
+import '../screens/settings/privacy_controls_screen.dart';
+import '../screens/settings/sessions_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/settings_section_screen.dart';
+import '../screens/settings/two_factor_screen.dart';
 import '../screens/story_viewer_screen.dart';
 import '../screens/swift_plus_screen.dart';
 import '../screens/user_profile_screen.dart';
@@ -56,6 +70,10 @@ class AppRouter {
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/2fa-login',
+        builder: (context, state) => const TwoFactorLoginScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
@@ -135,6 +153,10 @@ class AppRouter {
         builder: (context, state) => const FriendsScreen(),
       ),
       GoRoute(
+        path: '/find-friends',
+        builder: (context, state) => const FindFriendsScreen(),
+      ),
+      GoRoute(
         path: '/notifications',
         builder: (context, state) => const NotificationsScreen(),
       ),
@@ -185,6 +207,50 @@ class AppRouter {
       GoRoute(
         path: '/settings-about',
         builder: (context, state) => const AboutScreen(),
+      ),
+      GoRoute(
+        path: '/settings-password',
+        builder: (context, state) => const PasswordScreen(),
+      ),
+      GoRoute(
+        path: '/settings-2fa',
+        builder: (context, state) => TwoFactorScreen(
+          initiallyEnabled:
+              context.read<AuthProvider>().currentUser?.twoFactorEnabled ??
+                  false,
+        ),
+      ),
+      GoRoute(
+        path: '/settings-sessions',
+        builder: (context, state) => const SessionsScreen(),
+      ),
+      GoRoute(
+        path: '/settings-privacy',
+        builder: (context, state) => const PrivacyControlsScreen(),
+      ),
+      GoRoute(
+        path: '/settings-notifications',
+        builder: (context, state) => const NotificationSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings-account-status',
+        builder: (context, state) => const AccountStatusScreen(),
+      ),
+      GoRoute(
+        path: '/settings-delete-account',
+        builder: (context, state) => const DeleteAccountScreen(),
+      ),
+      GoRoute(
+        path: '/settings-my-data',
+        builder: (context, state) => const MyDataScreen(),
+      ),
+      GoRoute(
+        path: '/settings-my-reports',
+        builder: (context, state) => const MyReportsScreen(),
+      ),
+      GoRoute(
+        path: '/settings-phone',
+        builder: (context, state) => const PhoneNumberScreen(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

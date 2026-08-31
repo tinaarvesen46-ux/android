@@ -76,117 +76,6 @@ class SettingsCatalog {
 
   static const List<SettingsSectionSpec> sections = [
     SettingsSectionSpec(
-      id: 'account',
-      title: 'Account',
-      icon: Icons.person_outline_rounded,
-      footer:
-          'Account details are stored on the SwiftSnap backend and sync across devices.',
-      groups: [
-        SettingsGroupSpec(
-          title: 'Security',
-          rows: [
-            SettingsRowSpec.toggle(
-              title: 'Require confirmation on new logins',
-              key: 'account.login_confirmation',
-              defaultBool: true,
-            ),
-            SettingsRowSpec.toggle(
-              title: 'Remember this device',
-              key: 'account.remember_device',
-              defaultBool: true,
-            ),
-          ],
-        ),
-      ],
-    ),
-    SettingsSectionSpec(
-      id: 'privacy',
-      title: 'Privacy',
-      icon: Icons.lock_outline_rounded,
-      groups: [
-        SettingsGroupSpec(
-          title: 'Who can',
-          rows: [
-            SettingsRowSpec.choice(
-              title: 'Contact me',
-              key: 'privacy.contact_me',
-              options: ['Friends', 'Everyone'],
-              defaultChoice: 'Friends',
-            ),
-            SettingsRowSpec.choice(
-              title: 'View my story',
-              key: 'privacy.view_story',
-              options: ['Friends', 'Everyone', 'Custom'],
-              defaultChoice: 'Friends',
-            ),
-            SettingsRowSpec.choice(
-              title: 'See me in Quick Add',
-              key: 'privacy.quick_add',
-              options: ['Friends of friends', 'Nobody'],
-              defaultChoice: 'Friends of friends',
-            ),
-          ],
-        ),
-        SettingsGroupSpec(
-          title: 'Activity',
-          rows: [
-            SettingsRowSpec.toggle(
-              title: 'Show my online status',
-              key: 'privacy.online_status',
-              defaultBool: true,
-            ),
-            SettingsRowSpec.toggle(
-              title: 'Send read receipts',
-              key: 'privacy.read_receipts',
-              defaultBool: true,
-            ),
-          ],
-        ),
-      ],
-    ),
-    SettingsSectionSpec(
-      id: 'notifications',
-      title: 'Notifications',
-      icon: Icons.notifications_none_rounded,
-      footer:
-          'Delivery to a locked or closed app additionally requires push credentials on the backend.',
-      groups: [
-        SettingsGroupSpec(
-          rows: [
-            SettingsRowSpec.toggle(
-              title: 'Messages',
-              key: 'notifications.messages',
-              defaultBool: true,
-            ),
-            SettingsRowSpec.toggle(
-              title: 'Friend requests',
-              key: 'notifications.friend_requests',
-              defaultBool: true,
-            ),
-            SettingsRowSpec.toggle(
-              title: 'Story updates',
-              key: 'notifications.stories',
-              defaultBool: true,
-            ),
-            SettingsRowSpec.toggle(
-              title: 'Reel activity',
-              key: 'notifications.reels',
-            ),
-            SettingsRowSpec.toggle(
-              title: 'Sound',
-              key: 'notifications.sound',
-              defaultBool: true,
-            ),
-            SettingsRowSpec.toggle(
-              title: 'Vibration',
-              key: 'notifications.vibration',
-              defaultBool: true,
-            ),
-          ],
-        ),
-      ],
-    ),
-    SettingsSectionSpec(
       id: 'chat',
       title: 'Chat',
       icon: Icons.chat_bubble_outline_rounded,
@@ -207,6 +96,16 @@ class SettingsCatalog {
             SettingsRowSpec.toggle(
               title: 'Save media automatically',
               key: 'chat.autosave_media',
+            ),
+            SettingsRowSpec.toggle(
+              title: 'Notification sound',
+              key: 'chat.notif_sound',
+              defaultBool: true,
+            ),
+            SettingsRowSpec.toggle(
+              title: 'Notification vibration',
+              key: 'chat.notif_vibration',
+              defaultBool: true,
             ),
           ],
         ),

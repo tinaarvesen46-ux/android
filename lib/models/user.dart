@@ -15,6 +15,11 @@ class User {
   final String role;
   final String roleLabel;
 
+  /// Real server-owned 2FA flag (`users.two_factor_enabled`). Used only to
+  /// pick the initial state of the Two-Factor screen — every actual toggle
+  /// is verified against the backend.
+  final bool twoFactorEnabled;
+
   const User({
     required this.id,
     required this.username,
@@ -27,6 +32,7 @@ class User {
     this.isVerified = false,
     this.role = 'user',
     this.roleLabel = '',
+    this.twoFactorEnabled = false,
   });
 
   User copyWith({
@@ -40,6 +46,7 @@ class User {
     bool? isVerified,
     String? role,
     String? roleLabel,
+    bool? twoFactorEnabled,
   }) =>
       User(
         id: id,
@@ -53,5 +60,6 @@ class User {
         isVerified: isVerified ?? this.isVerified,
         role: role ?? this.role,
         roleLabel: roleLabel ?? this.roleLabel,
+        twoFactorEnabled: twoFactorEnabled ?? this.twoFactorEnabled,
       );
 }

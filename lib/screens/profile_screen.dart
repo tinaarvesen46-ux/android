@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/user.dart';
 import '../providers/social_provider.dart';
@@ -31,6 +33,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  String _profileUrl(User user) => 'https://vexor.to/u/${user.username}';
+
+  void _shareProfile(User user) {
+    SharePlus.instance.share(
+      ShareParams(
+        text: 'Add me on SwiftSnap: ${_profileUrl(user)}',
+        subject: 'My SwiftSnap profile',
+      ),
+    );
+  }
+
+  void _showQrCode(User user) {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppTheme.spacingXl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('@${user.username}', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppTheme.spacingLg),
+              Container(
+                padding: const EdgeInsets.all(AppTheme.spacingLg),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                ),
+                child: QrImageView(data: _profileUrl(user), size: 220),
+              ),
+              const SizedBox(height: AppTheme.spacingLg),
+              Text(
+                'Scan to open ${user.displayName}\'s SwiftSnap profile',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final social = context.watch<SocialProvider>();
@@ -42,6 +87,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             showBack: true,
             title: 'Profile',
             actions: [
+              if (social.me.data != null)
+                SnapIconButton(
+                  icon: Icons.qr_code_rounded,
+                  onTap: () => _showQrCode(social.me.data!),
+                ),
               SnapIconButton(
                 icon: Icons.settings_outlined,
                 onTap: () => context.push('/settings'),
@@ -112,6 +162,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.face_retouching_natural_rounded,
                     label: 'Avatar studio',
                     onTap: () => context.push('/avatar'),
+                  ),
+                  ProfileActionRow(
+                    icon: Icons.ios_share_rounded,
+                    label: 'Share profile',
+                    onTap: () => _shareProfile(user),
+                  ),
+                  ProfileActionRow(
+                    icon: Icons.verified_user_outlined,
+                    label: 'Account status',
+                    onTap: () => context.push('/settings-account-status'),
+                  ),
+                  ProfileActionRow(
+                    icon: Icons.person_search_rounded,
+                    label: 'Find friends from contacts',
+                    onTap: () => context.push('/find-friends'),
                   ),
                   ProfileActionRow(
                     icon: Icons.group_outlined,

@@ -41,12 +41,24 @@ class SocialRepository {
     required String displayName,
     required String username,
     required String bio,
+    String? pronouns,
+    String? birthday,
+    String? location,
+    String? website,
+    String? phone,
+    String? privacyLevel,
   }) =>
       guardApi(() async {
         final res = await _api.put('/me', data: {
           'display_name': displayName,
           'username': username,
           'bio': bio,
+          if (pronouns != null) 'pronouns': pronouns,
+          if (birthday != null) 'birthday': birthday,
+          if (location != null) 'location': location,
+          if (website != null) 'website': website,
+          if (phone != null) 'phone': phone,
+          if (privacyLevel != null) 'privacy_level': privacyLevel,
         });
         return userFromJson(_single(res.data));
       });

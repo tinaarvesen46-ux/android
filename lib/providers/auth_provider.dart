@@ -22,6 +22,9 @@ class AuthProvider extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  String? _pendingTwoFactorToken;
+  String? get pendingTwoFactorToken => _pendingTwoFactorToken;
+
   bool get isAuthenticated => _currentUser != null;
 
   Future<bool> login({
@@ -30,6 +33,7 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     _isLoading = true;
     _error = null;
+    _pendingTwoFactorToken = null;
     notifyListeners();
 
     final result = await _authService.login(
@@ -40,6 +44,37 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = false;
     if (result.success && result.user != null) {
       _currentUser = result.user;
+      unawaited(_realtime.connect());
+      notifyListeners();
+      return true;
+    }
+    if (result.twoFactorPendingToken != null) {
+      _pendingTwoFactorToken = result.twoFactorPendingToken;
+      notifyListeners();
+      return false;
+    }
+    _error = result.error;
+    notifyListeners();
+    return false;
+  }
+
+  Future<bool> verifyTwoFactor({String? code, String? recoveryCode}) async {
+    final pending = _pendingTwoFactorToken;
+    if (pending == null) return false;
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    final result = await _authService.verifyTwoFactorLogin(
+      pendingToken: pending,
+      code: code,
+      recoveryCode: recoveryCode,
+    );
+
+    _isLoading = false;
+    if (result.success && result.user != null) {
+      _currentUser = result.user;
+      _pendingTwoFactorToken = null;
       unawaited(_realtime.connect());
       notifyListeners();
       return true;
@@ -90,6 +125,15 @@ class AuthProvider extends ChangeNotifier {
 
   void clearError() {
     _error = null;
+    notifyListeners();
+  }
+
+  /// Keeps the in-memory current user's 2FA flag in sync immediately after
+  /// a real enable/disable response, so re-opening the 2FA screen shows the
+  /// correct initial state without waiting for the next `/me` refetch.
+  void setTwoFactorEnabled(bool enabled) {
+    if (_currentUser == null) return;
+    _currentUser = _currentUser!.copyWith(twoFactorEnabled: enabled);
     notifyListeners();
   }
 }

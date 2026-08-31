@@ -7,8 +7,15 @@ class AuthResult {
   final String? error;
   final User? user;
   final String? token;
+  final String? twoFactorPendingToken;
 
-  const AuthResult({required this.success, this.error, this.user, this.token});
+  const AuthResult({
+    required this.success,
+    this.error,
+    this.user,
+    this.token,
+    this.twoFactorPendingToken,
+  });
 }
 
 class AuthService {
@@ -26,6 +33,12 @@ class AuthService {
         'password': password,
       });
       final data = response.data as Map<String, dynamic>;
+      if (data['two_factor_required'] == true) {
+        return AuthResult(
+          success: false,
+          twoFactorPendingToken: data['pending_token'] as String?,
+        );
+      }
       final token = data['token'] as String;
       await _api.setToken(token);
       return AuthResult(
@@ -38,6 +51,30 @@ class AuthService {
         success: false,
         error: _parseError(e),
       );
+    }
+  }
+
+  Future<AuthResult> verifyTwoFactorLogin({
+    required String pendingToken,
+    String? code,
+    String? recoveryCode,
+  }) async {
+    try {
+      final response = await _api.post('/auth/2fa/verify-login', data: {
+        'pending_token': pendingToken,
+        if (code != null) 'code': code,
+        if (recoveryCode != null) 'recovery_code': recoveryCode,
+      });
+      final data = response.data as Map<String, dynamic>;
+      final token = data['token'] as String;
+      await _api.setToken(token);
+      return AuthResult(
+        success: true,
+        token: token,
+        user: userFromJson(asMap(data['user'])),
+      );
+    } catch (e) {
+      return AuthResult(success: false, error: _parseError(e));
     }
   }
 

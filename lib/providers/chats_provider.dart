@@ -135,6 +135,23 @@ class ChatsProvider extends ChangeNotifier {
     }
   }
 
+  /// Opens (or creates, idempotently on the backend) a direct conversation
+  /// with [userId]. Returns the conversation id, or null on failure — check
+  /// [lastError] for the message to show.
+  String? lastError;
+
+  Future<String?> startConversationWith(String userId) async {
+    lastError = null;
+    try {
+      final id = await _chats.createConversation(userId);
+      unawaited(loadConversations());
+      return id;
+    } on ApiFailure catch (e) {
+      lastError = e.message;
+      return null;
+    }
+  }
+
   // ── Realtime (Laravel Reverb) ──────────────────────────────────────────
 
   void _wirePresence() {
