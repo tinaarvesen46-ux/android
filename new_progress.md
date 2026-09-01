@@ -99,3 +99,15 @@ VPS capacity audit before AI runtime work: 4 vCPUs, 7.8 GiB RAM, 92 GiB free dis
 - [B] iOS signing additionally lacks an Apple development team/provisioning identity in the project.
 
 The three existing status files were synchronized before this report. This file is the final release-preparation record and was created after the implementation, deployment, database, API, and static checks above.
+
+## Android release-build remediation
+
+The Codemagic failure was traced to the direct dependency declared in `pubspec.yaml`: `ffmpeg_kit_flutter_min: ^4.5.1`. Its Dart API is used by `lib/screens/capture_preview_screen.dart` to bake text overlays into video captures, so the dependency and functionality were retained.
+
+- [~] The package's existing Java namespace is `com.arthenica.ffmpegkit.flutter`; the repository fix uses that exact namespace, but the dependency archive is not available locally for a clean package-cache inspection.
+- [~] `android/build.gradle.kts` now configures only the generated `ffmpeg_kit_flutter_min` Android library subproject through AGP's `LibraryExtension`. Clean-CI survival awaits a successful Codemagic build.
+- [V] No dependency was replaced or removed. No FFmpeg call site was changed.
+- [V] Gradle `8.14.3`, AGP `8.11.1`, Kotlin `2.2.20`, application ID `com.primio.swiftsnap.pkvtsv`, and version `1.0.0+8` were preserved. `codemagic.yaml` was not changed.
+- [V] Android manifest XML, release signing-file presence, namespace patch text, FFmpeg references, application ID, version, and Codemagic APK/AAB command presence were checked locally.
+- [B] `flutter pub get`, `flutter analyze`, `dart analyze`, `dart format`, `flutter build apk --release`, and `flutter build appbundle --release` remain unverified because Flutter, Dart, Java, Gradle, and the Gradle wrapper are unavailable in this environment. The namespace remediation must not be called build-passing until a clean Codemagic or equivalent Android build completes.
+- [~] The original Codemagic build failed during dependency configuration before compilation; rerunning Codemagic is required to verify this repository-controlled remediation and expose any subsequent dependency/build errors.
