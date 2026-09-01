@@ -264,3 +264,35 @@ camera screen's `Stack`.
   parser/compiler pass.
 - [B] Local Flutter, Dart, Java, and Gradle remain unavailable; therefore
   local analyzer, clean, dependency, APK, and AAB commands cannot run here.
+
+### Codemagic follow-up: Gradle heap exhaustion — 2026-09-01
+
+The latest Codemagic build passed Flutter compilation and failed at
+`:app:mergeReleaseNativeLibs` while Jetifying Flutter's `x86_64_release` jar
+with `Java heap space`. The configured workflow uses Codemagic's
+`mac_mini_m2`, documented as an 8 GB RAM machine. The previous project
+configuration reserved up to 8 GB heap plus 4 GB metaspace and enabled
+parallel Gradle execution, which could exhaust the runner while Jetifier and
+native-library merging were active.
+
+Build-only configuration was adjusted in `android/gradle.properties`:
+
+- `org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g` with the existing code
+  cache and heap-dump diagnostics retained.
+- `org.gradle.parallel=false` and `org.gradle.workers.max=2` to bound concurrent
+  memory use on the 8 GB runner.
+- `android.useAndroidX=true` and `android.enableJetifier=true` remain enabled.
+- `codemagic.yaml` remains on `mac_mini_m2` with no competing `GRADLE_OPTS` or
+  `JAVA_TOOL_OPTIONS` override, leaving `gradle.properties` as the single JVM
+  memory source of truth.
+- x86_64 support, FFmpeg, all dependencies, and all application features were
+  preserved.
+
+- [V] The Gradle memory/concurrency configuration is present once, with
+  AndroidX, Jetifier, application ID, version, and workflow commands intact.
+- [~] The memory fix requires a fresh clean Codemagic APK build to verify the
+  runner can complete Jetify/native-library merging.
+- [B] Local Flutter, Dart, Java, and Gradle are unavailable, so this
+  environment cannot execute the clean/build loop or produce APK/AAB artifacts.
+- [B] APK and AAB remain unverified; the supplied build failed before artifact
+  creation. The AndroidX/support-library message remains a warning only.
