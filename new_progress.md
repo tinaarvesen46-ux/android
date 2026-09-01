@@ -218,3 +218,26 @@ removed or disabled.
   this latest run; it reached Dart compilation. The repository still uses the
   maintained FFmpeg plugin migration documented at
   https://pub.dev/packages/ffmpeg_kit_flutter_new_min.
+
+### Codemagic follow-up: camera parser repair — 2026-09-01
+
+The next supplied Codemagic run confirmed that the prior import/type repairs
+were no longer blockers and reported one remaining parser error at
+`camera_screen.dart:360`, where `Positioned.fill` was left open. A complete
+inspection of the overlay tree found the missing close was the nested `Align`
+constructor immediately before `Positioned.fill` was terminated. That close is
+now restored in the repository. The resulting order is
+`Column → Material → GestureDetector → SizedBox → IgnorePointer → Transform →
+Align → Positioned.fill`, followed by the existing `AnimatedBuilder` callback.
+
+- [V] The interactive Memories overlay, camera controls, Memories provider,
+  loading/retry/empty states, favourites/delete actions, vertical drag, and
+  lifecycle-related source remain present after the structural repair.
+- [V] Active-source audits still find no retired FFmpeg references and no old
+  `LoadState` error-property references.
+- [~] The corrected camera syntax is source-audited, but the supplied
+  Codemagic run failed before this final close was applied. A fresh clean
+  Codemagic APK build is still required for compiler verification.
+- [B] Local Flutter/Dart/Java/Gradle tooling remains unavailable, so local
+  `flutter analyze`, `flutter clean`, `flutter pub get`, APK, and AAB commands
+  cannot be executed. No release artifact is claimed.

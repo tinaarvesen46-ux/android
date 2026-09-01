@@ -457,8 +457,8 @@ class _CameraScreenState extends State<CameraScreen>
                                                   if (error != null && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
                                                 },
                                               ),
-                                            ],
-                                          ),
+                                          ],
+                                        ),
                                         ),
                                       ),
                                       child: ClipRRect(
@@ -474,10 +474,11 @@ class _CameraScreenState extends State<CameraScreen>
                                                 child: Icon(Icons.play_circle_fill_rounded, size: 18),
                                               ),
                                           ],
-                                        ),
-                                      ),
-                                    );
-                                  },
+                      ),
+                      ),
+                    ),
+                  );
+              },
                                 ),
                               ),
                             ),
@@ -489,6 +490,7 @@ class _CameraScreenState extends State<CameraScreen>
                     ),
                   ),
                 ),
+              ),
               );
               },
           ),
