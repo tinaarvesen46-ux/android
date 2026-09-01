@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/story.dart';
+import '../models/story_comment.dart';
+import '../providers/chats_provider.dart';
 import '../theme/theme.dart';
 import '../widgets/common/snap_avatar.dart';
 
@@ -212,6 +215,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
     );
   }
 
+}
+
 void showStoryCommentsSheet(BuildContext context, String storyItemId) async {
   final provider = context.read<ChatsProvider>();
   await provider.loadStoryReplies(storyItemId);
@@ -252,7 +257,7 @@ void showStoryCommentsSheet(BuildContext context, String storyItemId) async {
                   if (state.isError) {
                     return Center(child: Text(state.error ?? 'Failed to load'));
                   }
-                  final list = state.data ?? <dynamic>[];
+                   final list = state.data ?? const <StoryComment>[];
                   if (list.isEmpty) {
                     return const Center(child: Text('No comments yet'));
                   }
@@ -260,7 +265,7 @@ void showStoryCommentsSheet(BuildContext context, String storyItemId) async {
                     controller: scrollController,
                     itemCount: list.length,
                     itemBuilder: (context, i) {
-                      final cmt = list[i] as StoryComment;
+                       final cmt = list[i];
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundImage: cmt.author.avatarUrl != null
@@ -362,5 +367,4 @@ class _CommentInputState extends State<_CommentInput> {
       ),
     );
   }
-}
 }

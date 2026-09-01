@@ -93,7 +93,17 @@ class _MyAiScreenState extends State<MyAiScreen> {
             const SizedBox(width: AppTheme.spacingSm),
             const Text('My AI'),
           ]),
-          actions: [IconButton(tooltip: 'My AI settings', icon: const Icon(Icons.info_outline_rounded), onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('My AI settings are in Settings > Generative AI.')))],
+          actions: [
+            IconButton(
+              tooltip: 'My AI settings',
+              icon: const Icon(Icons.info_outline_rounded),
+              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('My AI settings are in Settings > Generative AI.'),
+                ),
+              ),
+            ),
+          ],
         ),
         Expanded(
           child: ListView(

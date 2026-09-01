@@ -7,9 +7,12 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 
 import '../models/media.dart';
+import '../providers/memories_provider.dart';
 import '../theme/theme.dart';
+import '../widgets/common/async_state_view.dart';
 import '../widgets/camera/camera_controls.dart';
 import '../widgets/camera/camera_permission_view.dart';
 
@@ -487,6 +490,7 @@ class _CameraScreenState extends State<CameraScreen>
                   ),
                 ),
               );
+              ),
               },
           ),
         ],

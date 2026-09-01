@@ -6,6 +6,7 @@ import '../core/json_mappers.dart';
 import '../core/load_state.dart';
 import '../models/chat.dart';
 import '../models/story.dart';
+import '../models/story_comment.dart';
 import '../repositories/chat_repository.dart';
 import '../repositories/feed_repository.dart';
 import '../services/realtime_service.dart';
@@ -27,7 +28,7 @@ class ChatsProvider extends ChangeNotifier {
       LoadState<List<Conversation>>.idle();
   LoadState<List<Story>> _stories = LoadState<List<Story>>.idle();
   final Map<String, LoadState<List<ChatMessage>>> _messages = {};
-  final Map<String, LoadState<List<dynamic>>> _storyReplies = {};
+  final Map<String, LoadState<List<StoryComment>>> _storyReplies = {};
   final Set<String> _onlineUserIds = {};
   final Set<String> _wiredChannels = {};
   final Set<String> _wiredStoryChannels = {};
@@ -41,8 +42,8 @@ class ChatsProvider extends ChangeNotifier {
   LoadState<List<ChatMessage>> messagesFor(String conversationId) =>
       _messages[conversationId] ?? LoadState<List<ChatMessage>>.idle();
 
-    LoadState<List<dynamic>> storyRepliesFor(String storyItemId) =>
-      _storyReplies[storyItemId] ?? LoadState<List<dynamic>>.idle();
+  LoadState<List<StoryComment>> storyRepliesFor(String storyItemId) =>
+      _storyReplies[storyItemId] ?? LoadState<List<StoryComment>>.idle();
 
   bool isUserOnline(String userId) => _onlineUserIds.contains(userId);
 
@@ -74,7 +75,7 @@ class ChatsProvider extends ChangeNotifier {
     final ai = Conversation(
       id: 'my-ai',
       type: 'ai',
-      participant: const User(
+      participant: User(
         id: 'my-ai',
         username: 'myai',
         displayName: 'My AI',
@@ -113,13 +114,16 @@ class ChatsProvider extends ChangeNotifier {
 
   Future<void> loadStoryReplies(String storyItemId) async {
     _wireStoryChannel(storyItemId);
-    _storyReplies[storyItemId] = LoadState<List<dynamic>>.loading();
+    _storyReplies[storyItemId] = LoadState<List<StoryComment>>.loading();
     notifyListeners();
     try {
       final list = await _feed.fetchStoryReplies(storyItemId);
-      _storyReplies[storyItemId] = listState(list.map(storyCommentFromJson).toList());
+      final comments = list
+          .map((item) => storyCommentFromJson(Map<String, dynamic>.from(item)))
+          .toList();
+      _storyReplies[storyItemId] = listState(comments);
     } on ApiFailure catch (e) {
-      _storyReplies[storyItemId] = LoadState<List<dynamic>>.error(e.message);
+      _storyReplies[storyItemId] = LoadState<List<StoryComment>>.error(e.message);
     }
     notifyListeners();
   }
@@ -130,8 +134,8 @@ class ChatsProvider extends ChangeNotifier {
     try {
       await _feed.replyToStory(storyItemId: storyItemId, content: trimmed);
       // optimistic: append a temporary placeholder will be reconciled by realtime
-      final current = _storyReplies[storyItemId]?.data ?? const <dynamic>[];
-      _storyReplies[storyItemId] = LoadState<List<dynamic>>.success([
+      final current = _storyReplies[storyItemId]?.data ?? const <StoryComment>[];
+      _storyReplies[storyItemId] = LoadState<List<StoryComment>>.success([
         ...current,
       ]);
       notifyListeners();
@@ -294,9 +298,9 @@ class ChatsProvider extends ChangeNotifier {
     _rt.on(channel, 'reply.created', (data) {
       try {
         final comment = storyCommentFromJson(data);
-        final current = _storyReplies[storyItemId]?.data ?? <dynamic>[];
-        if (!current.any((c) => (c as dynamic).id == comment.id)) {
-          _storyReplies[storyItemId] = LoadState<List<dynamic>>.success([...current, comment]);
+        final current = _storyReplies[storyItemId]?.data ?? <StoryComment>[];
+        if (!current.any((c) => c.id == comment.id)) {
+          _storyReplies[storyItemId] = LoadState<List<StoryComment>>.success([...current, comment]);
           notifyListeners();
         }
       } catch (_) {}

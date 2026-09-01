@@ -120,3 +120,57 @@ Codemagic subsequently passed the namespace stage but failed because the old pac
 - [V] No Gradle, AGP, Kotlin, app ID, version, signing, Codemagic workflow, camera, media, or WebRTC configuration was changed.
 - [~] The replacement coordinate and namespace hook are repository-controlled and textually verified, but this environment cannot execute Gradle or Flutter to verify resolution/compilation.
 - [B] APK/AAB, `flutter pub get`, Flutter analysis, and Dart analysis remain unavailable because Flutter, Dart, Java, Gradle, and the Gradle wrapper are not installed locally.
+
+## Codemagic release-build repair: Dart and FFmpeg compatibility
+
+The next complete Codemagic log reached compilation and exposed two groups of
+errors: the legacy `ffmpeg_kit_flutter_min` Android plugin used removed Flutter
+v1 embedding APIs/private constructors, and existing Dart source had several
+parser/import/type errors that cascaded into additional diagnostics.
+
+Files changed in this repair:
+
+- `pubspec.yaml`: added the Flutter SDK `flutter_localizations` dependency and
+  migrated the FFmpeg package to `ffmpeg_kit_flutter_new_min: ^3.6.2`.
+- `lib/screens/capture_preview_screen.dart`: changed only the FFmpeg import;
+  `FFmpegKit.execute` video overlay processing remains active.
+- `lib/screens/avatar_studio_screen.dart`: restored the missing conditional
+  widget-tree closing parenthesis.
+- `lib/screens/camera_screen.dart`: restored the missing `Align` closure and
+  imported `provider`, `MemoriesProvider`, and `AsyncStateView`.
+- `lib/screens/my_ai_screen.dart`: repaired the `AppBar` action `IconButton`
+  closure without removing the settings action.
+- `lib/screens/story_viewer_screen.dart`: restored the state-class boundary,
+  imported `provider`, `ChatsProvider`, and `StoryComment`, and retained story
+  reactions/replies/comments with strongly typed reply lists.
+- `lib/providers/chats_provider.dart`: typed story replies as
+  `List<StoryComment>`, fixed the mapper input, and removed the invalid const
+  construction of the fallback AI user.
+- `lib/screens/user_profile_screen.dart`: imported `dart:async` for the
+  existing realtime `unawaited` calls.
+- `android/build.gradle.kts`: removed the obsolete workaround for the retired
+  package after migrating to the maintained Flutter plugin.
+
+The maintained FFmpeg package documents the same `FFmpegKit.execute` API,
+Android/iOS support, LGPL licensing, and modern Flutter/Android bindings:
+https://pub.dev/packages/ffmpeg_kit_flutter_new_min
+
+- [V] Localization delegates remain intact: Material, Widgets, and Cupertino
+  delegates are still configured in `main.dart`.
+- [V] Camera, Memories, provider state, StoryViewer reactions/replies/comments,
+  My AI, AvatarStudio, profile/realtime behavior, and video overlay processing
+  were preserved; no feature was stubbed or removed.
+- [V] Application ID `com.primio.swiftsnap.pkvtsv`, version `1.0.0+8`, signing
+  setup, Gradle `8.14.3`, AGP `8.11.1`, Kotlin `2.2.20`, and both Codemagic
+  release commands remain unchanged.
+- [V] Textual audits confirm the old FFmpeg package/import and retired Android
+  coordinate are no longer part of the active project configuration.
+- [~] The maintained package/API selection and all Dart repairs are locally
+  inspected, but this environment cannot run the Dart analyzer or Flutter
+  compiler.
+- [B] `flutter pub get`, `flutter analyze`, `dart analyze`, `dart format`,
+  `flutter build apk --release`, and `flutter build appbundle --release` could
+  not be executed locally because Flutter, Dart, Java, Gradle, and the Gradle
+  wrapper are unavailable.
+- [~] The latest Codemagic run failed before these source repairs were present;
+  a fresh clean Codemagic run is required before APK/AAB success can be claimed.

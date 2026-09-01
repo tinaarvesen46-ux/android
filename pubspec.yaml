@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # Core packages (fully cross-platform)
   cupertino_icons: ^1.0.6
@@ -53,7 +55,7 @@ dependencies:
   # ─── Media (images / video / audio) ───
   image: ^4.5.4
   video_player: ^2.10.0
-  ffmpeg_kit_flutter_min: ^4.5.1
+  ffmpeg_kit_flutter_new_min: ^3.6.2
 
   # UI utilities (fully cross-platform)
   flutter_svg: ^2.2.0
@@ -88,4 +90,3 @@ flutter:
 
   assets:
     - assets/icons/
-

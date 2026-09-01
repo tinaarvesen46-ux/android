@@ -315,7 +315,7 @@ class _AvatarStudioScreenState extends State<AvatarStudioScreen> {
                             ),
                           ],
                         ),
-                      )),
+                      ))),
           ),
         ],
       ),
