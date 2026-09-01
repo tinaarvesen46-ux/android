@@ -53,6 +53,7 @@ dependencies:
   # ─── Media (images / video / audio) ───
   image: ^4.5.4
   video_player: ^2.10.0
+  ffmpeg_kit_flutter_min: ^4.5.1
 
   # UI utilities (fully cross-platform)
   flutter_svg: ^2.2.0

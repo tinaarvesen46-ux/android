@@ -7,8 +7,16 @@ import '../../theme/theme.dart';
 class MessageComposer extends StatefulWidget {
   final ValueChanged<String> onSend;
   final ValueChanged<bool>? onTypingChanged;
+  final bool enabled;
+  final String hintText;
 
-  const MessageComposer({super.key, required this.onSend, this.onTypingChanged});
+  const MessageComposer({
+    super.key,
+    required this.onSend,
+    this.onTypingChanged,
+    this.enabled = true,
+    this.hintText = 'Send a message',
+  });
 
   @override
   State<MessageComposer> createState() => _MessageComposerState();
@@ -102,7 +110,8 @@ class _MessageComposerState extends State<MessageComposer> {
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _submit(),
               style: theme.textTheme.bodyMedium,
-              decoration: const InputDecoration(hintText: 'Send a message'),
+              enabled: widget.enabled,
+              decoration: InputDecoration(hintText: widget.hintText),
             ),
           ),
           const SizedBox(width: AppTheme.spacingSm),
@@ -110,7 +119,7 @@ class _MessageComposerState extends State<MessageComposer> {
             button: true,
             label: 'Send message',
             child: GestureDetector(
-              onTap: _canSend ? _submit : null,
+              onTap: widget.enabled && _canSend ? _submit : null,
               child: Container(
                 width: AppTheme.buttonHeight,
                 height: AppTheme.buttonHeight,

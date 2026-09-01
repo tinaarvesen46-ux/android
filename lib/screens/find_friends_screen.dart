@@ -140,7 +140,7 @@ class _FindFriendsScreenState extends State<FindFriendsScreen> {
               final u = matches[index];
               final sent = _sentRequests.contains(u.id);
               return ListTile(
-                leading: SnapAvatar(imageUrl: u.avatarUrl, fallbackText: u.displayName, size: AppTheme.avatarMd),
+                leading: SnapAvatar(imageUrl: u.avatarUrl, renderUrl: u.avatarRenderUrl, fallbackText: u.displayName, size: AppTheme.avatarMd),
                 title: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

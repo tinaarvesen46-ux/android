@@ -38,10 +38,27 @@ class FeedRepository {
             data: {'content': content},
           ));
 
+  Future<List<dynamic>> fetchStoryReplies(String storyItemId) => guardApi(() async {
+        final res = await _api.get('/stories/$storyItemId/replies');
+        return asList(res.data);
+      });
+
   Future<List<SpotlightPost>> fetchReels() => guardApi(() async {
         final res = await _api.get('/spotlight');
         return asList(res.data).map(spotlightPostFromJson).toList();
       });
+
+  Future<List<dynamic>> fetchStoryReactions(String storyItemId) => guardApi(() async {
+        final res = await _api.get('/stories/$storyItemId/reactions');
+        return asList(res.data);
+      });
+
+  Future<void> postStoryReaction(String storyItemId, String reaction) => guardApi(
+        () => _api.post('/stories/$storyItemId/reaction', data: {'reaction': reaction}),
+      );
+
+  Future<void> removeStoryReaction(String storyItemId) =>
+      guardApi(() => _api.delete('/stories/$storyItemId/reaction'));
 
   Future<void> likeReel(String postId, bool liked) => guardApi(
         () => _api.post('/spotlight/$postId/like', data: {'liked': liked}),

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/social.dart';
 import '../providers/chats_provider.dart';
+import '../services/realtime_service.dart';
 import '../providers/social_provider.dart';
 import '../theme/theme.dart';
 import '../widgets/common/app_top_bar.dart';
@@ -29,6 +30,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<SocialProvider>().loadProfile(widget.userId);
+      // Subscribe to realtime updates for this user's avatar and refresh when it changes
+      try {
+        final realtime = context.read<RealtimeService>();
+        unawaited(realtime.connect());
+        final channel = 'private-user.${widget.userId}';
+        unawaited(realtime.subscribePrivate(channel));
+        realtime.on(channel, 'AvatarUpdated', (payload) {
+          try {
+            if (mounted) context.read<SocialProvider>().loadProfile(widget.userId);
+          } catch (_) {}
+        });
+      } catch (_) {}
     });
   }
 
@@ -59,6 +72,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
+  Future<void> _toggleFollow(UserProfile profile) async {
+    setState(() => _busy = true);
+    final social = context.read<SocialProvider>();
+    String? err;
+    if (profile.isFollowing) {
+      err = await social.unfollowUser(widget.userId);
+    } else {
+      err = await social.followUser(widget.userId);
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SocialProvider>();
@@ -79,6 +108,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   Center(
                     child: SnapAvatar(
                       imageUrl: profile.user.avatarUrl,
+                      renderUrl: profile.user.avatarRenderUrl,
                       fallbackText: profile.user.displayName,
                       size: AppTheme.avatarXl,
                     ),
@@ -126,6 +156,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         value: '${profile.reelCount}',
                         label: 'Reels',
                       ),
+                      GestureDetector(
+                        onTap: () => context.push('/user/${profile.user.id}/followers'),
+                        child: ProfileStat(
+                          value: '${profile.followerCount}',
+                          label: 'Followers',
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: AppTheme.spacingXxl),
@@ -147,6 +184,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           reason: 'inappropriate',
                         )),
                   ),
+                  if (profile.isPublicProfile) ...[
+                    const SizedBox(height: AppTheme.spacingMd),
+                    ElevatedButton(
+                      onPressed: _busy ? null : () => _toggleFollow(profile),
+                      child: Text(profile.isFollowing ? 'Unfollow' : 'Follow'),
+                    ),
+                  ],
                 ],
               ),
             ),

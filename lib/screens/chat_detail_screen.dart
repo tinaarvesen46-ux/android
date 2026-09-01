@@ -6,12 +6,14 @@ import '../models/chat.dart';
 import '../providers/chats_provider.dart';
 import '../providers/social_provider.dart';
 import '../theme/theme.dart';
+import '../services/webrtc_service.dart';
 import '../widgets/chats/message_bubble.dart';
 import '../widgets/chats/message_composer.dart';
 import '../widgets/common/app_top_bar.dart';
 import '../widgets/common/async_state_view.dart';
 import '../widgets/common/role_badge.dart';
 import '../widgets/common/snap_icon_button.dart';
+import '../widgets/common/snap_avatar.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final String conversationId;
@@ -74,6 +76,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
+  Future<void> _startCall(String kind) async {
+    final conversation = _conversation;
+    if (conversation == null || conversation.isGroup || conversation.isAi) return;
+    try {
+      final id = await context.read<WebRtcService>().createCall(
+            calleeId: conversation.participant.id,
+            kind: kind,
+            conversationId: conversation.id,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(id.isEmpty ? 'Call request sent.' : '$kind call request sent.'),
+      ));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Calling is unavailable right now.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ChatsProvider>();
@@ -104,6 +128,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 : Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      SnapAvatar(
+                        imageUrl: conversation.participant.avatarUrl,
+                        renderUrl: conversation.participant.avatarRenderUrl,
+                        fallbackText: conversation.participant.displayName,
+                        size: AppTheme.avatarSm,
+                        showStoryRing: true,
+                      ),
+                      const SizedBox(width: AppTheme.spacingSm),
                       Flexible(
                         child: Text(
                           title,
@@ -119,12 +151,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     ],
                   ),
             actions: [
-              if (conversation != null && !conversation.isGroup)
+              if (conversation != null && !conversation.isGroup && !conversation.isAi) ...[
+                SnapIconButton(
+                  icon: Icons.phone_outlined,
+                  onTap: () => _startCall('audio'),
+                ),
+                SnapIconButton(
+                  icon: Icons.videocam_outlined,
+                  onTap: () => _startCall('video'),
+                ),
                 SnapIconButton(
                   icon: Icons.person_outline_rounded,
                   onTap: () =>
                       context.push('/user/${conversation.participant.id}'),
                 ),
+              ],
             ],
           ),
           if (subtitle != null)

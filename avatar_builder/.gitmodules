@@ -1,0 +1,3 @@
+[submodule "avataaars-generator"]
+	path = avataaars-generator
+	url = git@github.com:fangpenlin/avataaars-generator.git

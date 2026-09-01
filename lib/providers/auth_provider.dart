@@ -6,20 +6,24 @@ import '../repositories/social_repository.dart';
 import '../services/auth_service.dart';
 import '../services/realtime_service.dart';
 import '../services/saved_accounts_store.dart';
+import 'social_provider.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService;
   final RealtimeService _realtime;
   final SocialRepository _social;
   final SavedAccountsStore _savedAccounts = SavedAccountsStore();
+  final SocialProvider? _socialProvider;
 
   AuthProvider({
     required AuthService authService,
     required RealtimeService realtimeService,
     required SocialRepository socialRepository,
+    SocialProvider? socialProvider,
   })  : _authService = authService,
         _realtime = realtimeService,
-        _social = socialRepository {
+        _social = socialRepository,
+        _socialProvider = socialProvider {
     unawaited(loadSavedAccounts());
   }
 
@@ -63,6 +67,28 @@ class AuthProvider extends ChangeNotifier {
     if (result.success && result.user != null) {
       _currentUser = result.user;
       unawaited(_realtime.connect());
+      final channel = 'private-user.${_currentUser!.id}';
+      unawaited(_realtime.subscribePrivate(channel));
+      _realtime.on(channel, 'AvatarUpdated', (payload) {
+        try {
+          final avatarUrl = payload['avatar_url'] as String?;
+          _currentUser = _currentUser!.copyWith(
+            avatarUrl: avatarUrl ?? _currentUser!.avatarUrl,
+            avatarRenderUrl: _currentUser!.avatarRenderUrl ?? '/api/v1/avatar/render/${_currentUser!.id}',
+          );
+          // Also refresh SocialProvider state so UI consumers of SocialProvider.me update
+          unawaited(_socialProvider?.loadMe());
+          notifyListeners();
+        } catch (_) {}
+      });
+      _realtime.on(channel, 'ProfileHeaderUpdated', (payload) async {
+        try {
+          final user = await _social.fetchMe();
+          _currentUser = user;
+          unawaited(_socialProvider?.loadMe());
+          notifyListeners();
+        } catch (_) {}
+      });
       notifyListeners();
       return true;
     }
@@ -94,6 +120,27 @@ class AuthProvider extends ChangeNotifier {
       _currentUser = result.user;
       _pendingTwoFactorToken = null;
       unawaited(_realtime.connect());
+      final channel = 'private-user.${_currentUser!.id}';
+      unawaited(_realtime.subscribePrivate(channel));
+      _realtime.on(channel, 'AvatarUpdated', (payload) {
+        try {
+          final avatarUrl = payload['avatar_url'] as String?;
+          _currentUser = _currentUser!.copyWith(
+            avatarUrl: avatarUrl ?? _currentUser!.avatarUrl,
+            avatarRenderUrl: _currentUser!.avatarRenderUrl ?? '/api/v1/avatar/render/${_currentUser!.id}',
+          );
+          unawaited(_socialProvider?.loadMe());
+          notifyListeners();
+        } catch (_) {}
+      });
+      _realtime.on(channel, 'ProfileHeaderUpdated', (payload) async {
+        try {
+          final user = await _social.fetchMe();
+          _currentUser = user;
+          unawaited(_socialProvider?.loadMe());
+          notifyListeners();
+        } catch (_) {}
+      });
       notifyListeners();
       return true;
     }
@@ -169,6 +216,19 @@ class AuthProvider extends ChangeNotifier {
       _currentUser = user;
       _isLoading = false;
       unawaited(_realtime.connect());
+      final channel = 'private-user.${_currentUser!.id}';
+      unawaited(_realtime.subscribePrivate(channel));
+      _realtime.on(channel, 'AvatarUpdated', (payload) {
+        try {
+          final avatarUrl = payload['avatar_url'] as String?;
+          _currentUser = _currentUser!.copyWith(
+            avatarUrl: avatarUrl ?? _currentUser!.avatarUrl,
+            avatarRenderUrl: _currentUser!.avatarRenderUrl ?? '/api/v1/avatar/render/${_currentUser!.id}',
+          );
+          unawaited(_socialProvider?.loadMe());
+          notifyListeners();
+        } catch (_) {}
+      });
       notifyListeners();
       return true;
     } catch (_) {
@@ -191,9 +251,28 @@ class AuthProvider extends ChangeNotifier {
   /// hydrates the real current user (so 2FA/role state is accurate
   /// immediately) and reconnects realtime.
   Future<void> hydrateFromExistingSession() async {
-    unawaited(_realtime.connect());
     try {
       _currentUser = await _social.fetchMe();
+      unawaited(_realtime.connect());
+      final channel = 'private-user.${_currentUser!.id}';
+      unawaited(_realtime.subscribePrivate(channel));
+      _realtime.on(channel, 'AvatarUpdated', (payload) {
+        if (_currentUser == null) return;
+        final avatarUrl = payload['avatar_url'] as String?;
+        _currentUser = _currentUser!.copyWith(
+          avatarUrl: avatarUrl ?? _currentUser!.avatarUrl,
+          avatarRenderUrl: _currentUser!.avatarRenderUrl ?? '/api/v1/avatar/render/${_currentUser!.id}',
+        );
+        unawaited(_socialProvider?.loadMe());
+        notifyListeners();
+      });
+      _realtime.on(channel, 'ProfileHeaderUpdated', (payload) async {
+        try {
+          _currentUser = await _social.fetchMe();
+          unawaited(_socialProvider?.loadMe());
+          notifyListeners();
+        } catch (_) {}
+      });
       notifyListeners();
     } catch (_) {
       // Token turned out to be invalid; leave currentUser null and let the

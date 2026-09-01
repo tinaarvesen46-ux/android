@@ -27,8 +27,10 @@ class ChatsProvider extends ChangeNotifier {
       LoadState<List<Conversation>>.idle();
   LoadState<List<Story>> _stories = LoadState<List<Story>>.idle();
   final Map<String, LoadState<List<ChatMessage>>> _messages = {};
+  final Map<String, LoadState<List<dynamic>>> _storyReplies = {};
   final Set<String> _onlineUserIds = {};
   final Set<String> _wiredChannels = {};
+  final Set<String> _wiredStoryChannels = {};
   final Map<String, Timer> _typingTimers = {};
   bool _presenceWired = false;
 
@@ -38,6 +40,9 @@ class ChatsProvider extends ChangeNotifier {
 
   LoadState<List<ChatMessage>> messagesFor(String conversationId) =>
       _messages[conversationId] ?? LoadState<List<ChatMessage>>.idle();
+
+    LoadState<List<dynamic>> storyRepliesFor(String storyItemId) =>
+      _storyReplies[storyItemId] ?? LoadState<List<dynamic>>.idle();
 
   bool isUserOnline(String userId) => _onlineUserIds.contains(userId);
 
@@ -50,7 +55,7 @@ class ChatsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final list = await _chats.fetchConversations();
-      _conversations = listState(list);
+      _conversations = listState(_withBuiltInAi(list));
       _wirePresence();
       for (final c in list) {
         _wireConversationChannel(c.id);
@@ -59,6 +64,26 @@ class ChatsProvider extends ChangeNotifier {
       _conversations = LoadState<List<Conversation>>.error(e.message);
     }
     notifyListeners();
+  }
+
+  List<Conversation> _withBuiltInAi(List<Conversation> conversations) {
+    if (conversations.any((conversation) => conversation.isAi)) {
+      return conversations;
+    }
+    final withoutAi = conversations.where((c) => !c.isAi).toList();
+    final ai = Conversation(
+      id: 'my-ai',
+      type: 'ai',
+      participant: const User(
+        id: 'my-ai',
+        username: 'myai',
+        displayName: 'My AI',
+        role: 'support',
+        roleLabel: 'SwiftSnap AI',
+      ),
+      isPinned: true,
+    );
+    return [ai, ...withoutAi];
   }
 
   Future<void> loadStories() async {
@@ -84,6 +109,45 @@ class ChatsProvider extends ChangeNotifier {
       _messages[conversationId] = LoadState<List<ChatMessage>>.error(e.message);
     }
     notifyListeners();
+  }
+
+  Future<void> loadStoryReplies(String storyItemId) async {
+    _wireStoryChannel(storyItemId);
+    _storyReplies[storyItemId] = LoadState<List<dynamic>>.loading();
+    notifyListeners();
+    try {
+      final list = await _feed.fetchStoryReplies(storyItemId);
+      _storyReplies[storyItemId] = listState(list.map(storyCommentFromJson).toList());
+    } on ApiFailure catch (e) {
+      _storyReplies[storyItemId] = LoadState<List<dynamic>>.error(e.message);
+    }
+    notifyListeners();
+  }
+
+  Future<String?> sendStoryReply({required String storyItemId, required String content}) async {
+    final trimmed = content.trim();
+    if (trimmed.isEmpty) return null;
+    try {
+      await _feed.replyToStory(storyItemId: storyItemId, content: trimmed);
+      // optimistic: append a temporary placeholder will be reconciled by realtime
+      final current = _storyReplies[storyItemId]?.data ?? const <dynamic>[];
+      _storyReplies[storyItemId] = LoadState<List<dynamic>>.success([
+        ...current,
+      ]);
+      notifyListeners();
+      return null;
+    } on ApiFailure catch (e) {
+      return e.message;
+    }
+  }
+
+  Future<String?> sendStoryReaction({required String storyItemId, required String reaction}) async {
+    try {
+      await _feed.postStoryReaction(storyItemId, reaction);
+      return null;
+    } on ApiFailure catch (e) {
+      return e.message;
+    }
   }
 
   /// Returns null on success, otherwise a user-facing message.
@@ -222,6 +286,25 @@ class ChatsProvider extends ChangeNotifier {
     unawaited(_rt.subscribePrivate(channel));
   }
 
+  void _wireStoryChannel(String storyItemId) {
+    if (_wiredStoryChannels.contains(storyItemId)) return;
+    _wiredStoryChannels.add(storyItemId);
+    final channel = 'private-story.$storyItemId';
+
+    _rt.on(channel, 'reply.created', (data) {
+      try {
+        final comment = storyCommentFromJson(data);
+        final current = _storyReplies[storyItemId]?.data ?? <dynamic>[];
+        if (!current.any((c) => (c as dynamic).id == comment.id)) {
+          _storyReplies[storyItemId] = LoadState<List<dynamic>>.success([...current, comment]);
+          notifyListeners();
+        }
+      } catch (_) {}
+    });
+
+    unawaited(_rt.subscribePrivate(channel));
+  }
+
   void _bumpConversationWithMessage(String conversationId, ChatMessage message) {
     final list = _conversations.data;
     if (list == null) return;
@@ -231,6 +314,7 @@ class ChatsProvider extends ChangeNotifier {
       if (c.id == conversationId) {
         updated = Conversation(
           id: c.id,
+          type: c.type,
           participant: c.participant,
           lastMessage: message,
           unreadCount: c.unreadCount,
@@ -257,6 +341,7 @@ class ChatsProvider extends ChangeNotifier {
         if (c.id != conversationId) return c;
         return Conversation(
           id: c.id,
+          type: c.type,
           participant: c.participant,
           lastMessage: c.lastMessage,
           unreadCount: c.unreadCount,

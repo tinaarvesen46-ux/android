@@ -30,6 +30,13 @@ class SettingsProvider extends ChangeNotifier {
 
   Map<String, String> get avatarConfig => _service.getMap(avatarPrefix);
 
+  String get language => _service.getString('app.language', fallback: 'en');
+
+  Future<void> setLanguage(String code) async {
+    await _service.setString('app.language', code);
+    notifyListeners();
+  }
+
   Future<void> setAvatarPart(String part, String value) =>
       setString('$avatarPrefix$part', value);
 

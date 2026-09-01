@@ -32,6 +32,7 @@ class RealtimeService {
   final Set<String> _subscribed = {};
   final Map<String, Map<String, List<void Function(Map<String, dynamic>)>>>
       _listeners = {};
+  final Map<String, int> _lastEventAt = {};
 
   bool get isConnected => _connected;
 
@@ -71,6 +72,8 @@ class RealtimeService {
     _socketId = null;
     _reconnectAttempts = 0;
     _subscribed.clear();
+    _listeners.clear();
+    _lastEventAt.clear();
     unawaited(_api.post('/presence/offline').catchError((_) {}));
   }
 
@@ -154,6 +157,7 @@ class RealtimeService {
       _startPing();
       _startHeartbeat();
       _resubscribeAll();
+      _replayMissedEvents();
       return;
     }
     if (event == null || channel == null) return;
@@ -161,6 +165,34 @@ class RealtimeService {
         _listeners[channel]?[event] ?? const [])) {
       cb(payload);
     }
+    // record last-seen timestamp for reconciliation
+    try {
+      final ts = (payload['timestamp'] ?? payload['ts']) as int?;
+      if (ts != null) _lastEventAt[channel!] = ts;
+    } catch (_) {}
+  }
+
+  Future<void> _replayMissedEvents() async {
+    try {
+      final since = _lastEventAt.values.isEmpty ? null : (_lastEventAt.values.reduce((a, b) => a > b ? a : b));
+      if (since == null) return;
+      final res = await _api.get('/realtime/missed', queryParams: {'since': since});
+      final list = res.data as List? ?? [];
+      for (final raw in list) {
+        try {
+          final channel = raw['channel'] as String?;
+          final event = raw['event'] as String?;
+          final data = raw['data'] as Map<String, dynamic>? ?? {};
+          if (channel != null && event != null) {
+            for (final cb in List<void Function(Map<String, dynamic>)>.of(_listeners[channel]?[event] ?? const [])) {
+              cb(data);
+            }
+            final ts = raw['timestamp'] as int?;
+            if (ts != null) _lastEventAt[channel] = ts;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
   }
 
   void _startPing() {

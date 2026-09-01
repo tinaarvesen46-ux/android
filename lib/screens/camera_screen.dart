@@ -23,7 +23,7 @@ class CameraScreen extends StatefulWidget {
 }
 
 class _CameraScreenState extends State<CameraScreen>
-    with WidgetsBindingObserver {
+  with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   CameraController? _controller;
   List<CameraDescription> _cameras = const [];
   int _cameraIndex = 0;
@@ -42,11 +42,21 @@ class _CameraScreenState extends State<CameraScreen>
 
   Timer? _recordTimer;
   Duration _recordDuration = Duration.zero;
+  // Interactive Memories panel state
+  late AnimationController _panelController;
+  double _panelDragLastY = 0.0;
+  bool _isScaling = false;
+  bool _panelOpen = false;
+  int _controllerGeneration = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _panelController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+    );
     _bootstrap();
   }
 
@@ -55,6 +65,7 @@ class _CameraScreenState extends State<CameraScreen>
     WidgetsBinding.instance.removeObserver(this);
     _recordTimer?.cancel();
     _controller?.dispose();
+    _panelController.dispose();
     super.dispose();
   }
 
@@ -65,11 +76,14 @@ class _CameraScreenState extends State<CameraScreen>
 
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
+      _controllerGeneration++;
       _recordTimer?.cancel();
       final old = _controller;
       _controller = null;
+      _panelOpen = false;
+      _panelController.value = 0.0;
       if (mounted) setState(() => _isRecording = false);
-      old?.dispose();
+      unawaited(old?.dispose() ?? Future<void>.value());
     } else if (state == AppLifecycleState.resumed) {
       _bootstrap();
     }
@@ -127,7 +141,20 @@ class _CameraScreenState extends State<CameraScreen>
     }
   }
 
+  Future<void> _maybePausePreview() async {
+    try {
+      await _controller?.pausePreview();
+    } catch (_) {}
+  }
+
+  Future<void> _maybeResumePreview() async {
+    try {
+      await _controller?.resumePreview();
+    } catch (_) {}
+  }
+
   Future<void> _startController(int index) async {
+    final generation = ++_controllerGeneration;
     final previous = _controller;
     _controller = null;
     await previous?.dispose();
@@ -155,7 +182,7 @@ class _CameraScreenState extends State<CameraScreen>
       return;
     }
 
-    if (!mounted) {
+    if (!mounted || generation != _controllerGeneration) {
       await controller.dispose();
       return;
     }
@@ -197,6 +224,8 @@ class _CameraScreenState extends State<CameraScreen>
       if (mounted) setState(() => _zoom = clamped);
     } on CameraException {
       // Zoom is unsupported on this sensor.
+    } catch (_) {
+      // The controller may have been replaced during an async camera call.
     }
   }
 
@@ -319,6 +348,147 @@ class _CameraScreenState extends State<CameraScreen>
               onRecordStart: _startRecording,
               onRecordStop: _stopRecording,
             ),
+          // Interactive Memories panel overlay
+          AnimatedBuilder(
+            animation: _panelController,
+            builder: (context, _) {
+              final value = _panelController.value;
+              final height = MediaQuery.of(context).size.height;
+              return Positioned.fill(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Transform.translate(
+                    offset: Offset(0, height * 0.95 * (1.0 - value)),
+                    child: IgnorePointer(
+                      ignoring: value <= 0.001,
+                      child: SizedBox(
+                        height: height * 0.95,
+                        child: GestureDetector(
+                          onVerticalDragUpdate: (d) {
+                            final progress = (_panelController.value - d.delta.dy / height).clamp(0.0, 1.0);
+                            _panelController.value = progress;
+                          },
+                          onVerticalDragEnd: (d) {
+                            if ((d.primaryVelocity ?? 0) > 800 || _panelController.value < 0.35) {
+                              _closePanel();
+                            } else {
+                              _openPanel();
+                            }
+                          },
+                          child: Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      elevation: 12,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                      child: Column(
+                        children: [
+                          // drag handle and header
+                          Padding(
+                            padding: const EdgeInsets.all(AppTheme.spacingSm),
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                                const SizedBox(height: AppTheme.spacingSm),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const SizedBox(width: 48),
+                                    Text('Memories', style: Theme.of(context).textTheme.titleMedium),
+                                    IconButton(
+                                      icon: const Icon(Icons.close_rounded),
+                                      onPressed: _closePanel,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingSm),
+                              child: AsyncStateView<List<MemoryItem>>(
+                                state: context.watch<MemoriesProvider>().memories,
+                                emptyIcon: Icons.bookmark_border_rounded,
+                                emptyTitle: 'No memories saved',
+                                emptyMessage: 'Captures you save to Memories will be archived here.',
+                                onRetry: () => context.read<MemoriesProvider>().load(),
+                                builder: (items) => GridView.builder(
+                                  padding: const EdgeInsets.all(AppTheme.spacingSm),
+                                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                    maxCrossAxisExtent: 160,
+                                    mainAxisSpacing: AppTheme.spacingSm,
+                                    crossAxisSpacing: AppTheme.spacingSm,
+                                    childAspectRatio: 0.72,
+                                  ),
+                                  itemCount: items.length,
+                                  itemBuilder: (context, index) {
+                                    final item = items[index];
+                                    return GestureDetector(
+                                      onLongPress: () => showModalBottomSheet<void>(
+                                        context: context,
+                                        builder: (sheetContext) => SafeArea(
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              ListTile(
+                                                leading: Icon(item.isFavorite ? Icons.star_rounded : Icons.star_border_rounded),
+                                                title: Text(item.isFavorite ? 'Remove from favourites' : 'Add to favourites'),
+                                                onTap: () async {
+                                                  Navigator.of(sheetContext).pop();
+                                                  final error = await context.read<MemoriesProvider>().toggleFavorite(item.id);
+                                                  if (error != null && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+                                                },
+                                              ),
+                                              ListTile(
+                                                leading: const Icon(Icons.delete_outline_rounded),
+                                                title: const Text('Delete'),
+                                                onTap: () async {
+                                                  Navigator.of(sheetContext).pop();
+                                                  final error = await context.read<MemoriesProvider>().delete(item.id);
+                                                  if (error != null && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            Image.network(item.thumbnailUrl ?? item.mediaUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Theme.of(context).colorScheme.surfaceContainerHighest)),
+                                            if (item.isVideo)
+                                              const Positioned(
+                                                right: AppTheme.spacingXs,
+                                                top: AppTheme.spacingXs,
+                                                child: Icon(Icons.play_circle_fill_rounded, size: 18),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+              },
+          ),
         ],
       ),
     );
@@ -377,10 +547,40 @@ class _CameraScreenState extends State<CameraScreen>
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onScaleStart: (_) => _baseZoom = _zoom,
+          // ScaleGestureRecognizer supports both a one-pointer vertical drag
+          // and a two-pointer pinch without stealing taps from focus.
+          onScaleStart: (details) {
+            _baseZoom = _zoom;
+            _panelDragLastY = details.focalPoint.dy;
+            _isScaling = false;
+          },
           onScaleUpdate: (details) {
-            if (details.pointerCount < 2) return;
-            _setZoom(_baseZoom * details.scale);
+            if (details.pointerCount >= 2) {
+              _isScaling = true;
+              unawaited(_setZoom(_baseZoom * details.scale));
+              return;
+            }
+            if (_isScaling) return;
+            final deltaY = details.focalPoint.dy - _panelDragLastY;
+            _panelDragLastY = details.focalPoint.dy;
+            if ((!_panelOpen && deltaY < 0) || (_panelOpen && deltaY > 0)) {
+              _panelController.value = (_panelController.value - deltaY / constraints.maxHeight).clamp(0.0, 1.0);
+            }
+          },
+          onScaleEnd: (details) {
+            if (_isScaling) {
+              _isScaling = false;
+              return;
+            }
+            final velocityY = details.velocity.pixelsPerSecond.dy;
+            if (_panelOpen) {
+              if (velocityY > 800 || _panelController.value < 0.65) _closePanel();
+              else _openPanel();
+            } else if (velocityY < -800 || _panelController.value > 0.35) {
+              _openPanel();
+            } else {
+              _closePanel();
+            }
           },
           onTapUp: (details) {
             final local = details.localPosition;
@@ -407,5 +607,19 @@ class _CameraScreenState extends State<CameraScreen>
         );
       },
     );
+  }
+
+  void _openPanel() {
+    _panelOpen = true;
+    unawaited(_panelController.animateTo(1.0, curve: Curves.easeOut));
+    unawaited(_maybePausePreview());
+  }
+
+  void _closePanel() {
+    if (!_panelOpen && _panelController.value == 0.0) return;
+    _panelOpen = false;
+    unawaited(_panelController.animateBack(0.0, curve: Curves.easeOut).then((_) {
+      if (mounted && !_panelOpen) unawaited(_maybeResumePreview());
+    }));
   }
 }

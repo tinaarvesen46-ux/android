@@ -1,0 +1,27 @@
+name: avataaars_example
+description: Example app demonstrating the avataaars package.
+publish_to: none
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.1
+
+resolution: workspace
+
+dependencies:
+  avatar_builder:
+    path: ../
+  cupertino_icons: ^1.0.9
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  very_good_analysis: ^10.2.0
+
+flutter:
+  uses-material-design: true

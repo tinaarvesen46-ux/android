@@ -24,6 +24,9 @@ class ChatMessage {
 
 class Conversation {
   final String id;
+  /// Backend conversation type. `ai` is reserved for the built-in My AI
+  /// entry and is never treated as a human participant.
+  final String type;
   final User participant;
   final ChatMessage? lastMessage;
   final int unreadCount;
@@ -36,6 +39,7 @@ class Conversation {
 
   const Conversation({
     required this.id,
+    this.type = 'direct',
     required this.participant,
     this.lastMessage,
     this.unreadCount = 0,
@@ -46,4 +50,6 @@ class Conversation {
     this.groupName,
     this.members,
   });
+
+  bool get isAi => type == 'ai';
 }

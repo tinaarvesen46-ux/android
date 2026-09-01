@@ -1,0 +1,17 @@
+name: _avatar_builder_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.11.1
+
+workspace:
+  - avatar_builder_core
+  - avatar_builder
+  - avatar_builder/example
+
+dependencies:
+  avatar_builder_core:
+    path: avatar_builder_core
+
+dev_dependencies:
+  very_good_analysis: ^10.2.0

@@ -14,10 +14,10 @@ import '../services/api_service.dart';
 ///   POST   /conversations/{id}/mute           { muted: bool }
 ///   DELETE /conversations/{id}
 ///
-/// REALTIME: message fan-out is expected on the Reverb private channel
+/// REALTIME: message fan-out is delivered on the Reverb private channel
 /// `private-conversation.{id}` with event `message.created`, carrying the same
-/// message shape as the REST response. Channel subscription is not wired in
-/// this client yet, so messages are fetched on open and after each send.
+/// message shape as the REST response. ChatsProvider subscribes on load/open
+/// and reconciles duplicate events by message id.
 class ChatRepository {
   final ApiService _api;
 
@@ -82,4 +82,21 @@ class ChatRepository {
           data: {'is_typing': isTyping},
         ),
       );
+
+  // --- Call signaling (optional, backend must implement /calls endpoints) ---
+  Future<String> createCall({required String calleeId, required String kind, String? conversationId}) => guardApi(() async {
+        final res = await _api.post('/calls', data: {
+          'callee_id': int.tryParse(calleeId),
+          if (conversationId != null) 'conversation_id': int.tryParse(conversationId),
+          'type': kind == 'video' ? 'video' : 'audio',
+        });
+        final data = res.data is Map && res.data['data'] != null ? asMap(res.data['data']) : asMap(res.data);
+        return asString(data['call_id'] ?? data['uuid']);
+      });
+
+  Future<void> sendCallOffer(String callId, Map<String, dynamic> offer) => guardApi(() => _api.post('/calls/' + callId + '/signal', data: {'kind': 'offer', 'data': offer}));
+
+  Future<void> sendCallAnswer(String callId, Map<String, dynamic> answer) => guardApi(() => _api.post('/calls/' + callId + '/signal', data: {'kind': 'answer', 'data': answer}));
+
+  Future<void> endCall(String callId) => guardApi(() => _api.post('/calls/' + callId + '/end'));
 }

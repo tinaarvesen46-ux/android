@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
+import 'package:ffmpeg_kit_flutter_min/ffmpeg_kit.dart';
 
 import '../core/api_failure.dart';
 import '../models/media.dart';
@@ -104,21 +105,56 @@ class _CapturePreviewScreenState extends State<CapturePreviewScreen> {
   /// used for photos with at least one overlay — a plain capture with no
   /// edits is always uploaded untouched at its original resolution.
   Future<String> _resolveUploadPath() async {
-    if (widget.draft.isVideo || _textOverlays.isEmpty) return widget.draft.path;
-    final boundary =
-        _compositeKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-    if (boundary == null) return widget.draft.path;
-    final image = await boundary.toImage(pixelRatio: 2.0);
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (bytes == null) return widget.draft.path;
-    final out = File(
-      '${widget.draft.path}_edited_${DateTime.now().millisecondsSinceEpoch}.png',
-    );
-    await out.writeAsBytes(bytes.buffer.asUint8List(
-      bytes.offsetInBytes,
-      bytes.lengthInBytes,
-    ));
-    return out.path;
+    // If no overlays, upload original file.
+    if (_textOverlays.isEmpty) return widget.draft.path;
+
+    // For images, render the overlay composition into a png and upload that.
+    if (!widget.draft.isVideo) {
+      final boundary =
+          _compositeKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return widget.draft.path;
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (bytes == null) return widget.draft.path;
+      final out = File(
+        '${widget.draft.path}_edited_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      await out.writeAsBytes(bytes.buffer.asUint8List(
+        bytes.offsetInBytes,
+        bytes.lengthInBytes,
+      ));
+      return out.path;
+    }
+
+    // For videos, attempt to bake overlays using FFmpeg. If FFmpeg fails
+    // or isn't available on the platform, fall back to the original file.
+    try {
+      // Lazy import of ffmpeg is done at file top; probe video size.
+      final probeController = VideoPlayerController.file(File(widget.draft.path));
+      await probeController.initialize();
+      final size = probeController.value.size;
+      final width = size.width.toInt();
+      final height = size.height.toInt();
+      await probeController.dispose();
+
+      final filters = <String>[];
+      for (final overlay in _textOverlays) {
+        final x = (overlay.position.dx * width).toInt();
+        final y = (overlay.position.dy * height).toInt();
+        final text = overlay.text.replaceAll("'", "\\'");
+        filters.add(
+            "drawtext=fontfile=/system/fonts/Roboto-Regular.ttf:text='${text}':fontcolor=white:fontsize=48:x=${x}:y=${y}:box=1:boxcolor=black@0.4:boxborderw=6");
+      }
+
+      final vf = filters.join(',');
+      final outPath = '${widget.draft.path}_edited_${DateTime.now().millisecondsSinceEpoch}.mp4';
+      final cmd = "-i '${widget.draft.path}' -vf \"${vf}\" -c:a copy '${outPath}'";
+
+      await FFmpegKit.execute(cmd);
+      return outPath;
+    } catch (_) {
+      return widget.draft.path;
+    }
   }
 
   Future<void> _publish(

@@ -88,6 +88,7 @@ class _FriendsScreenState extends State<FriendsScreen>
                       return ListTile(
                         leading: SnapAvatar(
                           imageUrl: friend.avatarUrl,
+                          renderUrl: friend.avatarRenderUrl,
                           fallbackText: friend.displayName,
                           size: AppTheme.avatarSm,
                         ),
@@ -113,6 +114,7 @@ class _FriendsScreenState extends State<FriendsScreen>
                       return ListTile(
                         leading: SnapAvatar(
                           imageUrl: request.user.avatarUrl,
+                          renderUrl: request.user.avatarRenderUrl,
                           fallbackText: request.user.displayName,
                           size: AppTheme.avatarSm,
                         ),

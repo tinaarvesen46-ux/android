@@ -2,14 +2,14 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  static const String _baseUrl = 'https://vexor.to/api/v1';
+  static const String baseUrl = 'https://vexor.to/api/v1';
 
   late final Dio _dio;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   ApiService() {
     _dio = Dio(BaseOptions(
-      baseUrl: _baseUrl,
+      baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
       headers: {
@@ -45,6 +45,17 @@ class ApiService {
 
   Future<String?> getToken() async {
     return _storage.read(key: 'auth_token');
+  }
+
+  /// Converts API-relative media URLs returned by older endpoints into an
+  /// absolute URL usable by Image.network/SvgPicture.network.
+  static String resolveUrl(String value) {
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return value;
+    }
+    final origin = Uri.parse(baseUrl);
+    final path = value.startsWith('/') ? value : '/$value';
+    return origin.replace(path: path).toString();
   }
 
   Future<Response> get(String path, {Map<String, dynamic>? queryParams}) {

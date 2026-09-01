@@ -34,13 +34,24 @@ class ChatRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            SnapAvatar(
-              imageUrl: conversation.participant.avatarUrl,
-              fallbackText: conversation.participant.displayName,
-              size: AppTheme.avatarMd,
-              showOnlineIndicator: true,
-              isOnline: conversation.participant.isOnline,
-            ),
+            conversation.isAi
+                ? Container(
+                    width: AppTheme.avatarMd,
+                    height: AppTheme.avatarMd,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.auto_awesome_rounded, color: theme.colorScheme.onPrimary),
+                  )
+                : SnapAvatar(
+                    imageUrl: conversation.participant.avatarUrl,
+                    renderUrl: conversation.participant.avatarRenderUrl,
+                    fallbackText: conversation.participant.displayName,
+                    size: AppTheme.avatarMd,
+                    showOnlineIndicator: true,
+                    isOnline: conversation.participant.isOnline,
+                  ),
             const SizedBox(width: AppTheme.spacingMd),
             Expanded(
               child: Column(
@@ -54,7 +65,9 @@ class ChatRow extends StatelessWidget {
                           children: [
                             Flexible(
                               child: Text(
-                                conversation.isGroup
+                                conversation.isAi
+                                    ? 'My AI'
+                                    : conversation.isGroup
                                     ? (conversation.groupName ??
                                         conversation.participant.displayName)
                                     : conversation.participant.displayName,

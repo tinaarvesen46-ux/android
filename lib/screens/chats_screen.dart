@@ -170,7 +170,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   final conversation = conversations[index];
                   return ChatRow(
                     conversation: conversation,
-                    onTap: () => context.push('/chat/${conversation.id}'),
+                onTap: () => conversation.isAi
+                    ? context.push('/my-ai')
+                    : context.push('/chat/${conversation.id}'),
                     onLongPress: () => _openConversationActions(conversation),
                   );
                 },

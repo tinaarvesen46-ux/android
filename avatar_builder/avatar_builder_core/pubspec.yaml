@@ -1,0 +1,35 @@
+name: avatar_builder_core
+description: >-
+  Pure Dart library for building avataaars-style cartoon avatars from
+  customizable attributes using SVG. No Flutter dependency.
+version: 0.3.1
+repository: https://github.com/bramp/avatar_builder
+homepage: https://bramp.github.io/avatar_builder/
+topics:
+  - avatar
+  - svg
+  - avataaars
+
+environment:
+  sdk: ^3.11.1
+
+resolution: workspace
+
+dependencies:
+  meta: ^1.17.0
+
+flutter:
+  assets:
+    - lib/assets/
+    - lib/assets/eyes/
+    - lib/assets/eyebrows/
+    - lib/assets/mouths/
+    - lib/assets/clothing/
+    - lib/assets/graphic_clothing/
+    - lib/assets/top/
+    - lib/assets/accessories/
+    - lib/assets/facial_hair/
+
+dev_dependencies:
+  test: ^1.25.0
+  very_good_analysis: ^10.2.0

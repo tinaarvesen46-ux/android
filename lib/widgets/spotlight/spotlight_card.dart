@@ -102,6 +102,7 @@ class SpotlightCard extends StatelessWidget {
                     children: [
                       SnapAvatar(
                         imageUrl: post.creator.avatarUrl,
+                        renderUrl: post.creator.avatarRenderUrl,
                         fallbackText: post.creator.displayName,
                         size: AppTheme.avatarSm,
                       ),

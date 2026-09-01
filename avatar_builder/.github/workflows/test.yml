@@ -1,0 +1,67 @@
+name: Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_call:
+
+jobs:
+  unit_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Cache default Flutter artifacts
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.pub-cache/
+            /opt/hostedtoolcache/flutter/
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Format
+        run: make format
+
+      - name: Analyze
+        run: make analyze
+
+      - name: Run tests
+        run: make test-ci
+
+  golden_tests:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Cache default Flutter artifacts
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.pub-cache/
+            /opt/hostedtoolcache/flutter/
+          key: ${{ runner.os }}-flutter-${{ runner.arch }}-${{ hashFiles('**/pubspec.lock') }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Run golden tests
+        run: make test-golden-ci

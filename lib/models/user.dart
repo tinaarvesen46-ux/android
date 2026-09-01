@@ -3,6 +3,7 @@ class User {
   final String username;
   final String displayName;
   final String? avatarUrl;
+  final String? avatarRenderUrl;
   final String? bio;
   final bool isOnline;
   final DateTime? lastSeen;
@@ -25,6 +26,7 @@ class User {
     required this.username,
     required this.displayName,
     this.avatarUrl,
+    this.avatarRenderUrl,
     this.bio,
     this.isOnline = false,
     this.lastSeen,
@@ -39,6 +41,7 @@ class User {
     String? username,
     String? displayName,
     String? avatarUrl,
+    String? avatarRenderUrl,
     String? bio,
     bool? isOnline,
     DateTime? lastSeen,
@@ -53,6 +56,7 @@ class User {
         username: username ?? this.username,
         displayName: displayName ?? this.displayName,
         avatarUrl: avatarUrl ?? this.avatarUrl,
+        avatarRenderUrl: avatarRenderUrl ?? this.avatarRenderUrl,
         bio: bio ?? this.bio,
         isOnline: isOnline ?? this.isOnline,
         lastSeen: lastSeen ?? this.lastSeen,

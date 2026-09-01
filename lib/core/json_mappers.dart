@@ -5,6 +5,7 @@ import '../models/media.dart';
 import '../models/social.dart';
 import '../models/spotlight_post.dart';
 import '../models/story.dart';
+import '../models/story_comment.dart';
 import '../models/user.dart';
 
 /// Defensive JSON access helpers.
@@ -86,7 +87,8 @@ User userFromJson(Map<String, dynamic> json) => User(
       displayName: asString(
         json['display_name'] ?? json['name'] ?? json['username'],
       ),
-      avatarUrl: asNullableString(json['avatar_url'] ?? json['avatar']),
+  avatarUrl: asNullableString(json['avatar_url'] ?? json['avatar']),
+  avatarRenderUrl: asNullableString(json['avatar_render_url'] ?? json['render_url']),
       bio: asNullableString(json['bio']),
       isOnline: asBool(json['is_online']),
       lastSeen: asNullableDate(json['last_seen_at'] ?? json['last_seen']),
@@ -185,6 +187,7 @@ Conversation conversationFromJson(Map<String, dynamic> json) {
   final participantJson = json['participant'] ?? json['user'] ?? json['other'];
   return Conversation(
     id: asString(json['id']),
+    type: asString(json['type'], fallback: asBool(json['is_ai']) ? 'ai' : 'direct'),
     participant: participantJson != null
         ? userFromJson(asMap(participantJson))
         : (members.isNotEmpty
@@ -213,6 +216,13 @@ StoryItem storyItemFromJson(Map<String, dynamic> json) => StoryItem(
       createdAt: asDate(json['created_at']),
       viewCount: asInt(json['view_count'] ?? json['views_count']),
       replyCount: asInt(json['reply_count'] ?? json['replies_count']),
+    );
+
+StoryComment storyCommentFromJson(Map<String, dynamic> json) => StoryComment(
+      id: asString(json['id']),
+      author: userFromJson(asMap(json['user'] ?? json['author'] ?? json['from'] ?? json['actor'] ?? {})),
+      content: asString(json['content'] ?? json['body'] ?? json['message']),
+      createdAt: asDate(json['created_at'] ?? json['createdAt'] ?? json['sent_at']),
     );
 
 Story storyFromJson(Map<String, dynamic> json) => Story(

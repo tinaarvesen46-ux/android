@@ -118,6 +118,22 @@ class SocialProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<List<User>> fetchFollowersList(String userId) async {
+    try {
+      return await _social.fetchFollowers(userId);
+    } on ApiFailure {
+      return const <User>[];
+    }
+  }
+
+  Future<List<User>> fetchFollowingList(String userId) async {
+    try {
+      return await _social.fetchFollowing(userId);
+    } on ApiFailure {
+      return const <User>[];
+    }
+  }
+
   Future<void> search(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
@@ -138,6 +154,16 @@ class SocialProvider extends ChangeNotifier {
   Future<String?> sendFriendRequest(String userId) =>
       _mutate(() => _social.sendFriendRequest(userId), profileId: userId);
 
+  Future<String?> followUser(String userId) async {
+    final error = await _mutate(() => _social.followUser(userId), profileId: userId);
+    return error;
+  }
+
+  Future<String?> unfollowUser(String userId) async {
+    final error = await _mutate(() => _social.unfollowUser(userId), profileId: userId);
+    return error;
+  }
+
   Future<String?> removeFriend(String userId) async {
     final error =
         await _mutate(() => _social.removeFriend(userId), profileId: userId);
@@ -156,6 +182,48 @@ class SocialProvider extends ChangeNotifier {
     final error = await _mutate(() => _social.unblockUser(userId));
     if (error == null) await loadBlocked();
     return error;
+  }
+
+  Future<String?> createPublicProfile({
+    required String displayName,
+    required String username,
+    String? bio,
+  }) async {
+    try {
+      await _social.createPublicProfile(
+          displayName: displayName, username: username, bio: bio);
+      return null;
+    } on ApiFailure catch (e) {
+      return e.message;
+    }
+  }
+
+  Future<String?> updatePublicProfile({
+    required String profileId,
+    String? displayName,
+    String? username,
+    String? bio,
+  }) async {
+    try {
+      await _social.updatePublicProfile(
+        profileId: profileId,
+        displayName: displayName,
+        username: username,
+        bio: bio,
+      );
+      return null;
+    } on ApiFailure catch (e) {
+      return e.message;
+    }
+  }
+
+  Future<String?> disablePublicProfile(String profileId) async {
+    try {
+      await _social.disablePublicProfile(profileId);
+      return null;
+    } on ApiFailure catch (e) {
+      return e.message;
+    }
   }
 
   Future<String?> acceptRequest(String requestId) async {
@@ -231,6 +299,8 @@ class SocialProvider extends ChangeNotifier {
 
   Future<String?> saveAvatarConfig(Map<String, String> config) =>
       _mutate(() => _social.saveAvatarConfig(config));
+
+  Future<String?> resetAvatar() => _mutate(_social.resetAvatar);
 
   Future<String?> deleteAccount(String password) =>
       _mutate(() => _social.deleteAccount(password));

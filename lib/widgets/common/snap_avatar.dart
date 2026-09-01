@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+
+import '../../services/api_service.dart';
 import '../../theme/theme.dart';
 
 class SnapAvatar extends StatelessWidget {
   final String? imageUrl;
+  final String? renderUrl;
   final String fallbackText;
   final double size;
   final bool showStoryRing;
@@ -14,6 +17,7 @@ class SnapAvatar extends StatelessWidget {
   const SnapAvatar({
     super.key,
     this.imageUrl,
+    this.renderUrl,
     required this.fallbackText,
     this.size = AppTheme.avatarMd,
     this.showStoryRing = false,
@@ -56,7 +60,9 @@ class SnapAvatar extends StatelessWidget {
                 radius: size / 2,
                 backgroundColor: theme.colorScheme.surfaceContainerHighest,
                 backgroundImage:
-                    imageUrl != null ? NetworkImage(imageUrl!) : null,
+                  (imageUrl ?? renderUrl) != null
+                      ? NetworkImage(ApiService.resolveUrl(imageUrl ?? renderUrl!))
+                      : null,
                 child: imageUrl == null
                     ? Text(
                         fallbackText.isNotEmpty

@@ -1,0 +1,30 @@
+name: avatar_builder
+description: >-
+  Flutter widget that renders avataaars-style cartoon avatars from
+  customizable attributes using SVG.
+version: 0.3.1
+repository: https://github.com/bramp/avatar_builder
+homepage: https://bramp.github.io/avatar_builder/
+topics:
+  - avatar
+  - svg
+  - widget
+  - avataaars
+
+environment:
+  sdk: ^3.11.1
+  flutter: ">=3.27.0"
+
+resolution: workspace
+
+dependencies:
+  avatar_builder_core: ^0.3.0
+  flutter:
+    sdk: flutter
+  flutter_svg: ^2.2.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.4
+  very_good_analysis: ^10.2.0

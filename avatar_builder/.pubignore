@@ -1,0 +1,21 @@
+# Development tools
+avataaars-generator/
+tools/
+bin/
+Makefile
+
+# Tests and golden files
+test/
+dart_test.yaml
+
+# Build artifacts
+build/
+
+# Example build artifacts
+example/build/
+
+# Documentation not needed in package
+AGENTS.md
+TESTING_STRATEGY.md
+TODO.md
+avatar.code-workspace

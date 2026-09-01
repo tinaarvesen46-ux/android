@@ -6,12 +6,14 @@ import '../models/discover_item.dart';
 import '../models/media.dart';
 import '../models/story.dart';
 import '../providers/auth_provider.dart';
+import '../providers/social_provider.dart';
 import '../screens/achievements_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/auth/splash_screen.dart';
 import '../screens/auth/two_factor_login_screen.dart';
 import '../screens/avatar_studio_screen.dart';
+import '../screens/profile_header_editor_screen.dart';
 import '../screens/camera_screen.dart';
 import '../screens/creator_panel_screen.dart';
 import '../screens/capture_preview_screen.dart';
@@ -25,6 +27,7 @@ import '../screens/friends_screen.dart';
 import '../screens/home_shell.dart';
 import '../screens/map_screen.dart';
 import '../screens/memories_screen.dart';
+import '../screens/my_ai_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/reels_screen.dart';
@@ -40,6 +43,7 @@ import '../screens/settings/password_screen.dart';
 import '../screens/settings/permissions_screen.dart';
 import '../screens/settings/phone_number_screen.dart';
 import '../screens/settings/privacy_controls_screen.dart';
+import '../screens/settings/app_language_screen.dart';
 import '../screens/settings/sessions_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/settings_section_screen.dart';
@@ -47,6 +51,10 @@ import '../screens/settings/two_factor_screen.dart';
 import '../screens/story_viewer_screen.dart';
 import '../screens/swift_plus_screen.dart';
 import '../screens/user_profile_screen.dart';
+import '../screens/public/public_profile_create_screen.dart';
+import '../screens/public/public_profile_edit_screen.dart';
+import '../screens/public/followers_screen.dart';
+import '../screens/public/following_screen.dart';
 
 /// Navigation map.
 ///
@@ -133,10 +141,30 @@ class AppRouter {
         ),
       ),
       GoRoute(
+        path: '/my-ai',
+        builder: (context, state) => const MyAiScreen(),
+      ),
+      GoRoute(
         path: '/user/:id',
         builder: (context, state) => UserProfileScreen(
           userId: state.pathParameters['id']!,
         ),
+      ),
+      GoRoute(
+        path: '/user/:id/followers',
+        builder: (context, state) => FollowersScreen(userId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/user/:id/following',
+        builder: (context, state) => FollowingScreen(userId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/profile/public/create',
+        builder: (context, state) => const PublicProfileCreateScreen(),
+      ),
+      GoRoute(
+        path: '/profile/public/edit',
+        builder: (context, state) => const PublicProfileEditScreen(),
       ),
       GoRoute(
         path: '/profile',
@@ -145,6 +173,10 @@ class AppRouter {
           GoRoute(
             path: 'edit',
             builder: (context, state) => const EditProfileScreen(),
+          ),
+          GoRoute(
+            path: 'header',
+            builder: (context, state) => const ProfileHeaderEditorScreen(),
           ),
         ],
       ),
@@ -231,6 +263,10 @@ class AppRouter {
       GoRoute(
         path: '/settings-notifications',
         builder: (context, state) => const NotificationSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings-language',
+        builder: (context, state) => const AppLanguageScreen(),
       ),
       GoRoute(
         path: '/settings-account-status',

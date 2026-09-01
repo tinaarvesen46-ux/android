@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/settings_provider.dart';
@@ -99,6 +100,15 @@ class SettingsSectionScreen extends StatelessWidget {
           case SettingsRowKind.info:
             children.add(
               SettingsInfoRow(title: row.title, value: row.infoValue ?? ''),
+            );
+            break;
+          case SettingsRowKind.navigation:
+            children.add(
+              SettingsNavigationRow(
+                title: row.title,
+                subtitle: row.subtitle,
+                onTap: () => context.push(row.route!),
+              ),
             );
             break;
         }

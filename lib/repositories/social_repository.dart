@@ -64,7 +64,34 @@ class SocialRepository {
       });
 
   Future<void> saveAvatarConfig(Map<String, String> config) =>
-      guardApi(() => _api.post('/me/avatar-config', data: {'config': config}));
+      guardApi(() => _api.put('/avatar', data: {'config': config}));
+
+  Future<void> resetAvatar() => guardApi(() => _api.post('/avatar/reset'));
+
+  Future<Map<String, dynamic>> fetchAvatarCatalog({String? q, String? category, int page = 1, int perPage = 40}) => guardApi(() async {
+        final res = await _api.get('/avatar/catalog', queryParams: {
+          if (q != null) 'q': q,
+          if (category != null) 'category': category,
+          'page': page,
+          'per_page': perPage,
+        });
+        return asMap(res.data);
+      });
+
+  Future<Map<String, dynamic>?> fetchProfileHeader() => guardApi(() async {
+        final res = await _api.get('/me/profile-header');
+        return asMap(res.data);
+      });
+
+  Future<Map<String, dynamic>?> saveProfileHeader(Map<String, dynamic> config) => guardApi(() async {
+        final res = await _api.put('/me/profile-header', data: config);
+        return asMap(res.data);
+      });
+
+  Future<Map<String, dynamic>?> resetProfileHeader() => guardApi(() async {
+        final res = await _api.post('/me/profile-header/reset');
+        return asMap(res.data);
+      });
 
   Future<void> deleteAccount(String password) =>
       guardApi(() => _api.post('/me/delete', data: {'password': password}));
@@ -140,6 +167,46 @@ class SocialRepository {
   Future<List<Achievement>> fetchAchievements() => guardApi(() async {
         final res = await _api.get('/achievements');
         return asList(res.data).map(achievementFromJson).toList();
+      });
+
+      Future<void> createPublicProfile({
+        required String displayName,
+        required String username,
+        String? bio,
+      }) => guardApi(() => _api.post('/public-profiles', data: {
+            'display_name': displayName,
+            'username': username,
+            if (bio != null) 'bio': bio,
+          }));
+
+      Future<void> updatePublicProfile({
+        required String profileId,
+        String? displayName,
+        String? username,
+        String? bio,
+      }) => guardApi(() => _api.put('/public-profiles/$profileId', data: {
+            if (displayName != null) 'display_name': displayName,
+            if (username != null) 'username': username,
+            if (bio != null) 'bio': bio,
+          }));
+
+      Future<void> disablePublicProfile(String profileId) =>
+          guardApi(() => _api.delete('/public-profiles/$profileId'));
+
+  Future<void> followUser(String userId) =>
+      guardApi(() => _api.post('/users/$userId/follow'));
+
+  Future<void> unfollowUser(String userId) =>
+      guardApi(() => _api.delete('/users/$userId/follow'));
+
+  Future<List<User>> fetchFollowers(String userId) => guardApi(() async {
+        final res = await _api.get('/users/$userId/followers');
+        return asList(res.data).map(userFromJson).toList();
+      });
+
+  Future<List<User>> fetchFollowing(String userId) => guardApi(() async {
+        final res = await _api.get('/users/$userId/following');
+        return asList(res.data).map(userFromJson).toList();
       });
 
   Map<String, dynamic> _single(dynamic body) {
