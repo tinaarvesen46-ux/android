@@ -241,3 +241,26 @@ Align → Positioned.fill`, followed by the existing `AnimatedBuilder` callback.
 - [B] Local Flutter/Dart/Java/Gradle tooling remains unavailable, so local
   `flutter analyze`, `flutter clean`, `flutter pub get`, APK, and AAB commands
   cannot be executed. No release artifact is claimed.
+
+### Codemagic follow-up: inner Memories item closure — 2026-09-01
+
+The next supplied Codemagic run reported `camera_screen.dart:480` with an
+unexpected semicolon. The complete section was re-traced. The nested item
+callback now closes in the correct logical order: the image `Stack`, then its
+`ClipRRect`, then the item `GestureDetector` with its terminating `);`, then
+the `itemBuilder` callback. The outer panel still closes in the separate order
+`Column → Material → GestureDetector → SizedBox → IgnorePointer → Transform →
+Align → Positioned.fill`, and `Positioned.fill` remains a direct child of the
+camera screen's `Stack`.
+
+- [V] Removed only the extra inner `);` that caused the reported unexpected
+  semicolon. Camera preview, controls, Memories, provider state, vertical drag,
+  capture/video processing, overlays, API calls, and lifecycle handling remain
+  unchanged.
+- [V] Source audits still show no stale `LoadState` properties or retired
+  FFmpeg package references.
+- [~] The corrected source is audited against the supplied compiler location,
+  but a fresh Codemagic run is still required to verify the complete Flutter
+  parser/compiler pass.
+- [B] Local Flutter, Dart, Java, and Gradle remain unavailable; therefore
+  local analyzer, clean, dependency, APK, and AAB commands cannot run here.

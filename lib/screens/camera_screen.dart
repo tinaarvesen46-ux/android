@@ -474,11 +474,10 @@ class _CameraScreenState extends State<CameraScreen>
                                                 child: Icon(Icons.play_circle_fill_rounded, size: 18),
                                               ),
                                           ],
-                      ),
-                      ),
-                    ),
-                  );
-              },
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             ),
