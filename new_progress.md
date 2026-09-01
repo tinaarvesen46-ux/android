@@ -174,3 +174,47 @@ https://pub.dev/packages/ffmpeg_kit_flutter_new_min
   wrapper are unavailable.
 - [~] The latest Codemagic run failed before these source repairs were present;
   a fresh clean Codemagic run is required before APK/AAB success can be claimed.
+
+## Final Codemagic Dart-error repair audit — 2026-09-01
+
+The latest supplied Codemagic log reached Flutter compilation and reported
+three concrete source errors. Those errors are repaired in the repository:
+
+- `lib/providers/chats_provider.dart` now imports the existing
+  `lib/models/user.dart`; the pinned My AI conversation continues to use the
+  normal `User` model and messaging graph. No duplicate model was created.
+- `lib/screens/camera_screen.dart` now has the correct closing structure for
+  the interactive Memories `AnimatedBuilder` overlay. Camera controls,
+  Memories loading/retry/favourites/delete behavior, and the gesture layer
+  remain present.
+- `lib/screens/story_viewer_screen.dart` now uses the actual `LoadState` API
+  (`hasError` and `message`) instead of nonexistent `isError` and `error`
+  members. Strongly typed `StoryComment` rendering and the existing comments,
+  replies, reactions, and input flow remain present.
+
+Active-source text audits after the repairs report no remaining
+`isError`/`state.error` references and no retired `ffmpeg_kit_flutter_min`,
+`com.arthenica`, or `ffmpeg-kit-min:4.5.1` references. The maintained
+`ffmpeg_kit_flutter_new_min: ^3.6.2` dependency and `FFmpegKit.execute` video
+processing remain configured. The application ID, version, signing setup,
+localization delegates, camera, Memories, Stories, Chats, My AI, AvatarStudio,
+Profile, Settings, realtime, push, and WebRTC source configuration were not
+removed or disabled.
+
+- [~] The source repairs are textually and structurally audited, but the
+  latest Codemagic attempt failed before these final repairs. A new clean
+  Codemagic run is required to verify Dart compilation and reveal any later
+  compiler diagnostics.
+- [B] Local `flutter clean`, `flutter pub get`, `flutter analyze`, `dart
+  analyze`, `dart format`, `flutter build apk --release`, and `flutter build
+  appbundle --release` cannot run here because Flutter, Dart, Java, Gradle,
+  and the Gradle wrapper are unavailable. No APK or AAB success is claimed;
+  no release artifact was produced by the supplied failed run.
+- [V] The available backend/static checks completed in this environment:
+  33 PHP files outside vendor/cache directories passed `php -l`, and the
+  Android manifest plus iOS `Info.plist` parsed as XML. No project-root
+  `composer.json` exists, so Composer validation was not applicable.
+- [V] The supplied failure was not caused by FFmpeg dependency resolution in
+  this latest run; it reached Dart compilation. The repository still uses the
+  maintained FFmpeg plugin migration documented at
+  https://pub.dev/packages/ffmpeg_kit_flutter_new_min.

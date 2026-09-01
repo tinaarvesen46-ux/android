@@ -7,6 +7,7 @@ import '../core/load_state.dart';
 import '../models/chat.dart';
 import '../models/story.dart';
 import '../models/story_comment.dart';
+import '../models/user.dart';
 import '../repositories/chat_repository.dart';
 import '../repositories/feed_repository.dart';
 import '../services/realtime_service.dart';
