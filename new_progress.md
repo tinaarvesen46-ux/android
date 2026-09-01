@@ -106,8 +106,17 @@ The Codemagic failure was traced to the direct dependency declared in `pubspec.y
 
 - [~] The package's existing Java namespace is `com.arthenica.ffmpegkit.flutter`; the repository fix uses that exact namespace, but the dependency archive is not available locally for a clean package-cache inspection.
 - [~] `android/build.gradle.kts` now configures only the generated `ffmpeg_kit_flutter_min` Android library subproject through AGP's `LibraryExtension`. Clean-CI survival awaits a successful Codemagic build.
-- [V] No dependency was replaced or removed. No FFmpeg call site was changed.
+- [V] No Flutter dependency was replaced or removed. The retired transitive Maven artifact is substituted only at Android build resolution; no FFmpeg call site was changed.
 - [V] Gradle `8.14.3`, AGP `8.11.1`, Kotlin `2.2.20`, application ID `com.primio.swiftsnap.pkvtsv`, and version `1.0.0+8` were preserved. `codemagic.yaml` was not changed.
 - [V] Android manifest XML, release signing-file presence, namespace patch text, FFmpeg references, application ID, version, and Codemagic APK/AAB command presence were checked locally.
 - [B] `flutter pub get`, `flutter analyze`, `dart analyze`, `dart format`, `flutter build apk --release`, and `flutter build appbundle --release` remain unverified because Flutter, Dart, Java, Gradle, and the Gradle wrapper are unavailable in this environment. The namespace remediation must not be called build-passing until a clean Codemagic or equivalent Android build completes.
 - [~] The original Codemagic build failed during dependency configuration before compilation; rerunning Codemagic is required to verify this repository-controlled remediation and expose any subsequent dependency/build errors.
+
+### Follow-up Codemagic artifact-resolution failure
+
+Codemagic subsequently passed the namespace stage but failed because the old package requested the retired coordinate `com.arthenica:ffmpeg-kit-min:4.5.1-1`, which is no longer available. The repository-controlled fix in `android/build.gradle.kts` now substitutes that exact module with the pinned maintained coordinate `dev.ffmpegkit-maintained:ffmpeg-kit-min:8.1.7` only for the `ffmpeg_kit_flutter_min` subproject. The maintained fork documents the same FFmpegKit package/classes and artifact name under the new group.
+
+- [V] The `ffmpeg_kit_flutter_min` pub dependency remains `^4.5.1`, and `capture_preview_screen.dart` still calls `FFmpegKit.execute` for video overlays.
+- [V] No Gradle, AGP, Kotlin, app ID, version, signing, Codemagic workflow, camera, media, or WebRTC configuration was changed.
+- [~] The replacement coordinate and namespace hook are repository-controlled and textually verified, but this environment cannot execute Gradle or Flutter to verify resolution/compilation.
+- [B] APK/AAB, `flutter pub get`, Flutter analysis, and Dart analysis remain unavailable because Flutter, Dart, Java, Gradle, and the Gradle wrapper are not installed locally.

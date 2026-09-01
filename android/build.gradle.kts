@@ -28,6 +28,13 @@ subprojects {
             project.extensions.configure<LibraryExtension> {
                 namespace = "com.arthenica.ffmpegkit.flutter"
             }
+            project.configurations.configureEach {
+                resolutionStrategy.dependencySubstitution {
+                    substitute(module("com.arthenica:ffmpeg-kit-min:4.5.1-1"))
+                        .using(module("dev.ffmpegkit-maintained:ffmpeg-kit-min:8.1.7"))
+                        .because("The retired upstream FFmpegKit Maven artifact is no longer available")
+                }
+            }
         }
     }
 }
