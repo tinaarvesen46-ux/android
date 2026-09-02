@@ -197,7 +197,7 @@ class SocialRepository {
       guardApi(() => _api.post('/users/$userId/follow'));
 
   Future<void> unfollowUser(String userId) =>
-      guardApi(() => _api.delete('/users/$userId/follow'));
+      guardApi(() => _api.post('/users/$userId/unfollow'));
 
   Future<List<User>> fetchFollowers(String userId) => guardApi(() async {
         final res = await _api.get('/users/$userId/followers');

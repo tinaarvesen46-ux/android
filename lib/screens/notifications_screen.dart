@@ -105,6 +105,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     leading: notification.actor != null
                         ? SnapAvatar(
                             imageUrl: notification.actor!.avatarUrl,
+                            renderUrl: notification.actor!.avatarRenderUrl,
                             fallbackText: notification.actor!.displayName,
                             size: AppTheme.avatarSm,
                           )

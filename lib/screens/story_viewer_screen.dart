@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/story.dart';
@@ -154,8 +155,10 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
                       children: [
                         SnapAvatar(
                           imageUrl: widget.story.author.avatarUrl,
+                          renderUrl: widget.story.author.avatarRenderUrl,
                           fallbackText: widget.story.author.displayName,
                           size: AppTheme.avatarSm,
+                          onTap: () => context.push('/user/${widget.story.author.id}'),
                         ),
                         const SizedBox(width: AppTheme.spacingSm),
                         Expanded(
@@ -271,17 +274,16 @@ void showStoryCommentsSheet(BuildContext context, String storyItemId) async {
                     itemBuilder: (context, i) {
                       final cmt = list[i];
                       return ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: cmt.author.avatarUrl != null
-                              ? NetworkImage(cmt.author.avatarUrl!)
-                              : null,
-                          child: cmt.author.avatarUrl == null
-                              ? Text(cmt.author.displayName.isNotEmpty
-                                  ? cmt.author.displayName[0]
-                                  : '?')
-                              : null,
+                        leading: SnapAvatar(
+                          imageUrl: cmt.author.avatarUrl,
+                          renderUrl: cmt.author.avatarRenderUrl,
+                          fallbackText: cmt.author.displayName,
+                          size: AppTheme.avatarSm,
                         ),
-                        title: Text(cmt.author.displayName),
+                        title: InkWell(
+                          onTap: () => context.push('/user/${cmt.author.id}'),
+                          child: Text(cmt.author.displayName),
+                        ),
                         subtitle: Text(cmt.content),
                         trailing: Text(
                           '${timeAgo(cmt.createdAt)}',

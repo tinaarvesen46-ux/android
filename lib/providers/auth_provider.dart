@@ -74,7 +74,7 @@ class AuthProvider extends ChangeNotifier {
           final avatarUrl = payload['avatar_url'] as String?;
           _currentUser = _currentUser!.copyWith(
             avatarUrl: avatarUrl ?? _currentUser!.avatarUrl,
-            avatarRenderUrl: _currentUser!.avatarRenderUrl ?? '/api/v1/avatar/render/${_currentUser!.id}',
+            avatarRenderUrl: _currentUser!.avatarRenderUrl,
           );
           // Also refresh SocialProvider state so UI consumers of SocialProvider.me update
           unawaited(_socialProvider?.loadMe());
@@ -127,7 +127,7 @@ class AuthProvider extends ChangeNotifier {
           final avatarUrl = payload['avatar_url'] as String?;
           _currentUser = _currentUser!.copyWith(
             avatarUrl: avatarUrl ?? _currentUser!.avatarUrl,
-            avatarRenderUrl: _currentUser!.avatarRenderUrl ?? '/api/v1/avatar/render/${_currentUser!.id}',
+            avatarRenderUrl: _currentUser!.avatarRenderUrl,
           );
           unawaited(_socialProvider?.loadMe());
           notifyListeners();
@@ -223,7 +223,7 @@ class AuthProvider extends ChangeNotifier {
           final avatarUrl = payload['avatar_url'] as String?;
           _currentUser = _currentUser!.copyWith(
             avatarUrl: avatarUrl ?? _currentUser!.avatarUrl,
-            avatarRenderUrl: _currentUser!.avatarRenderUrl ?? '/api/v1/avatar/render/${_currentUser!.id}',
+            avatarRenderUrl: _currentUser!.avatarRenderUrl,
           );
           unawaited(_socialProvider?.loadMe());
           notifyListeners();
@@ -261,7 +261,7 @@ class AuthProvider extends ChangeNotifier {
         final avatarUrl = payload['avatar_url'] as String?;
         _currentUser = _currentUser!.copyWith(
           avatarUrl: avatarUrl ?? _currentUser!.avatarUrl,
-          avatarRenderUrl: _currentUser!.avatarRenderUrl ?? '/api/v1/avatar/render/${_currentUser!.id}',
+          avatarRenderUrl: _currentUser!.avatarRenderUrl,
         );
         unawaited(_socialProvider?.loadMe());
         notifyListeners();

@@ -36,6 +36,10 @@ class UserProfile {
   final int storyCount;
   final int reelCount;
   final bool isPublicProfile;
+  final bool canViewContent;
+  final bool canMessage;
+  final bool canSendFriendRequest;
+  final String? friendRequestId;
   final bool isFollowing;
   final int followerCount;
 
@@ -46,6 +50,10 @@ class UserProfile {
     this.storyCount = 0,
     this.reelCount = 0,
     this.isPublicProfile = false,
+    this.canViewContent = false,
+    this.canMessage = false,
+    this.canSendFriendRequest = false,
+    this.friendRequestId,
     this.isFollowing = false,
     this.followerCount = 0,
   });

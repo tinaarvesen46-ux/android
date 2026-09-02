@@ -131,8 +131,13 @@ class AvatarController extends Controller
         $config = $cfg && $cfg->config ? $cfg->config : [];
         $profile = DB::table('user_profiles')->where('user_id', $id)->first();
         $savedAvatar = $profile && $profile->avatar_config ? json_decode($profile->avatar_config, true) : [];
-        if (!isset($config['avatar_config']) || !is_array($config['avatar_config'])) {
-            $config['avatar_config'] = array_merge(self::defaultConfig(), is_array($savedAvatar) ? $savedAvatar : []);
+        // The current profile avatar is the source of truth. Header layout,
+        // scene and effects remain stored in the header record, but an old
+        // embedded avatar_config must never mask a newly saved avatar.
+        if (is_array($savedAvatar) && !empty($savedAvatar)) {
+            $config['avatar_config'] = array_merge(self::defaultConfig(), $savedAvatar);
+        } elseif (!isset($config['avatar_config']) || !is_array($config['avatar_config'])) {
+            $config['avatar_config'] = self::defaultConfig();
         }
 
         $renderer = new Renderer();
@@ -284,7 +289,7 @@ class AvatarController extends Controller
         // Invalidate cached render for previous config
         $renderer = new Renderer();
         if (is_array($oldConfig)) {
-            $oldHash = $renderer->hashConfig($oldConfig);
+            $oldHash = $renderer->hashConfig(array_merge(self::defaultConfig(), $oldConfig));
             $oldKey = 'swiftmoji:render:' . $oldHash;
             if (Cache::has($oldKey)) {
                 $oldPath = Cache::get($oldKey);
@@ -310,7 +315,7 @@ class AvatarController extends Controller
         $oldConfig = $p && $p->avatar_config ? json_decode($p->avatar_config, true) : null;
         $renderer = new Renderer();
         if (is_array($oldConfig)) {
-            $oldHash = $renderer->hashConfig($oldConfig);
+            $oldHash = $renderer->hashConfig(array_merge(self::defaultConfig(), $oldConfig));
             $oldKey = 'swiftmoji:render:' . $oldHash;
             if (Cache::has($oldKey)) {
                 $oldPath = Cache::get($oldKey);

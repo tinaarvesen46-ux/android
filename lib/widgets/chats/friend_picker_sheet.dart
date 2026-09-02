@@ -103,6 +103,7 @@ class _FriendPickerSheetState extends State<FriendPickerSheet> {
             return ListTile(
               leading: SnapAvatar(
                 imageUrl: friend.avatarUrl,
+                renderUrl: friend.avatarRenderUrl,
                 fallbackText: friend.displayName,
                 size: AppTheme.avatarSm,
               ),

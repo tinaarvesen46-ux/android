@@ -100,9 +100,22 @@ User userFromJson(Map<String, dynamic> json) => User(
     );
 
 UserProfile userProfileFromJson(Map<String, dynamic> json) {
-  final userJson = json['user'] ?? json['profile'] ?? json;
+  final userJson = Map<String, dynamic>.from(
+    asMap(json['user'] ?? json['profile'] ?? json),
+  );
+  // Profile endpoints return the render URL beside the nested user object.
+  // Fold it into the shared User model so profile, chat, story and search
+  // consumers all receive the same current avatar identity.
+  final renderUrl = asNullableString(
+    json['avatar_render_url'] ?? json['render_url'],
+  );
+  if (renderUrl != null &&
+      asNullableString(userJson['avatar_render_url'] ?? userJson['render_url']) ==
+          null) {
+    userJson['avatar_render_url'] = renderUrl;
+  }
   return UserProfile(
-    user: userFromJson(asMap(userJson)),
+    user: userFromJson(userJson),
     relationship: relationshipFromString(
       asNullableString(json['relationship'] ?? json['friendship_status']),
     ),
@@ -110,6 +123,15 @@ UserProfile userProfileFromJson(Map<String, dynamic> json) {
     storyCount: asInt(json['story_count'] ?? json['stories_count']),
     reelCount: asInt(json['reel_count'] ?? json['spotlight_count']),
     isPublicProfile: asBool(json['is_public'], fallback: true),
+    canViewContent: asBool(
+      json['can_view_content'],
+      fallback: asBool(json['is_public'], fallback: false),
+    ),
+    canMessage: asBool(json['can_message']),
+    canSendFriendRequest: asBool(json['can_send_friend_request']),
+    friendRequestId: asNullableString(
+      json['friend_request_id'] ?? json['request_id'],
+    ),
     isFollowing: asBool(json['is_following']),
     followerCount: asInt(json['follower_count'] ?? json['followers_count']),
   );

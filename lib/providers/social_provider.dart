@@ -241,8 +241,11 @@ class SocialProvider extends ChangeNotifier {
     return error;
   }
 
-  Future<String?> cancelRequest(String requestId) async {
-    final error = await _mutate(() => _social.cancelRequest(requestId));
+  Future<String?> cancelRequest(String requestId, {String? profileId}) async {
+    final error = await _mutate(
+      () => _social.cancelRequest(requestId),
+      profileId: profileId,
+    );
     if (error == null) await loadRequests();
     return error;
   }
@@ -297,10 +300,17 @@ class SocialProvider extends ChangeNotifier {
     }
   }
 
-  Future<String?> saveAvatarConfig(Map<String, String> config) =>
-      _mutate(() => _social.saveAvatarConfig(config));
+  Future<String?> saveAvatarConfig(Map<String, String> config) async {
+    final error = await _mutate(() => _social.saveAvatarConfig(config));
+    if (error == null) await loadMe();
+    return error;
+  }
 
-  Future<String?> resetAvatar() => _mutate(_social.resetAvatar);
+  Future<String?> resetAvatar() async {
+    final error = await _mutate(_social.resetAvatar);
+    if (error == null) await loadMe();
+    return error;
+  }
 
   Future<String?> deleteAccount(String password) =>
       _mutate(() => _social.deleteAccount(password));

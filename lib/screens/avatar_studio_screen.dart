@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/auth_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/social_provider.dart';
 import '../core/api_failure.dart';
@@ -8,6 +9,7 @@ import '../repositories/social_repository.dart';
 import '../services/api_service.dart';
 import '../theme/theme.dart';
 import '../widgets/common/app_top_bar.dart';
+import '../widgets/common/avatar_asset_image.dart';
 
 /// SwiftSnap-native avatar builder. The configuration is stored locally and
 /// synced to the backend so it can be rendered anywhere the user appears.
@@ -83,6 +85,10 @@ class _AvatarStudioScreenState extends State<AvatarStudioScreen> {
     final error =
         await context.read<SocialProvider>().saveAvatarConfig(settings.avatarConfig);
     if (!mounted) return;
+    if (error == null) {
+      await context.read<AuthProvider>().hydrateFromExistingSession();
+      if (!mounted) return;
+    }
     setState(() => _saving = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(error ?? 'Avatar saved.')),
@@ -98,6 +104,8 @@ class _AvatarStudioScreenState extends State<AvatarStudioScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
       return;
     }
+    await context.read<AuthProvider>().hydrateFromExistingSession();
+    if (!mounted) return;
     await context.read<SettingsProvider>().resetAvatar();
     setState(() => _saving = false);
   }
@@ -155,8 +163,8 @@ class _AvatarStudioScreenState extends State<AvatarStudioScreen> {
                                   return Padding(
                                     padding: const EdgeInsets.all(AppTheme.spacingLg),
                                     child: GridView.builder(
-                                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: 4,
+                                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                        maxCrossAxisExtent: 112,
                                         crossAxisSpacing: AppTheme.spacingSm,
                                         mainAxisSpacing: AppTheme.spacingSm,
                                         childAspectRatio: 1,
@@ -164,7 +172,7 @@ class _AvatarStudioScreenState extends State<AvatarStudioScreen> {
                                       itemCount: list.length,
                                       itemBuilder: (ctx, i) {
                                         final it = Map<String, dynamic>.from(list[i]);
-                                        final aid = (it['asset_id'] ?? it['id'] ?? '') as String;
+                                        final aid = (it['asset_id'] ?? it['id'] ?? '').toString();
                                         final selected = (settings.avatarConfig['${k}'] ?? '') == aid;
                                         // Determine availability: explicit `available` flag from API first,
                                         // fall back to presence of a filename (imported asset).
@@ -196,13 +204,14 @@ class _AvatarStudioScreenState extends State<AvatarStudioScreen> {
                                                 content: SizedBox(
                                                   width: 280,
                                                   height: 280,
-                                                  child: it['thumbnail_url'] != null
-                                                      ? Image.network(
-                                                          ApiService.resolveUrl(it['thumbnail_url']),
-                                                          fit: BoxFit.contain,
-                                                          errorBuilder: (ctx, err, st) => Center(child: Text(available ? 'Preview unavailable' : 'Item not available', style: theme.textTheme.bodyMedium)),
-                                                        )
-                                                      : Center(child: Text(available ? 'Preview unavailable' : 'Item not available', style: theme.textTheme.bodyMedium)),
+                                                  child: _CatalogAssetImage(
+                                                    asset: it,
+                                                    fit: BoxFit.contain,
+                                                    fallback: Text(
+                                                      available ? 'Preview unavailable' : 'Item not available',
+                                                      style: theme.textTheme.bodyMedium,
+                                                    ),
+                                                  ),
                                                 ),
                                                 actions: [
                                                   TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
@@ -233,34 +242,21 @@ class _AvatarStudioScreenState extends State<AvatarStudioScreen> {
                                                   borderRadius: BorderRadius.circular(8),
                                                   border: selected ? Border.all(color: theme.colorScheme.primary, width: 2) : null,
                                                 ),
-                                                child: ClipRRect(
-                                                  borderRadius: BorderRadius.circular(8),
-                                                  child: it['thumbnail_url'] != null
-                                                      ? Image.network(
-                                                          ApiService.resolveUrl(it['thumbnail_url']),
-                                                          fit: BoxFit.cover,
-                                                          errorBuilder: (ctx, err, st) => Center(
-                                                            child: Column(
-                                                              mainAxisSize: MainAxisSize.min,
-                                                              children: [
-                                                                Icon(Icons.image_not_supported, size: 28, color: theme.colorScheme.onSurfaceVariant),
-                                                                const SizedBox(height: AppTheme.spacingSm),
-                                                                Text(it['asset_id'] ?? aid, style: theme.textTheme.bodySmall),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        )
-                                                      : Center(
-                                                          child: Column(
-                                                            mainAxisSize: MainAxisSize.min,
-                                                            children: [
-                                                              Icon(Icons.image_not_supported, size: 28, color: theme.colorScheme.onSurfaceVariant),
-                                                              const SizedBox(height: AppTheme.spacingSm),
-                                                              Text(it['asset_id'] ?? aid, style: theme.textTheme.bodySmall),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                ),
+                                                  child: ClipRRect(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    child: _CatalogAssetImage(
+                                                      asset: it,
+                                                      fit: BoxFit.cover,
+                                                      fallback: Column(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          Icon(Icons.image_not_supported, size: 28, color: theme.colorScheme.onSurfaceVariant),
+                                                          const SizedBox(height: AppTheme.spacingSm),
+                                                          Text(aid, style: theme.textTheme.bodySmall),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
                                               ),
                                               if (!available)
                                                 Positioned.fill(
@@ -319,6 +315,38 @@ class _AvatarStudioScreenState extends State<AvatarStudioScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Catalog assets include both PNG files and the imported SVGF artwork. The
+/// API deliberately exposes one thumbnail URL for both, so choose the decoder
+/// from the asset filename instead of asking Flutter's raster decoder to read
+/// an SVG document.
+class _CatalogAssetImage extends StatelessWidget {
+  final Map<String, dynamic> asset;
+  final BoxFit fit;
+  final Widget fallback;
+
+  const _CatalogAssetImage({
+    required this.asset,
+    required this.fit,
+    required this.fallback,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rawUrl = asset['thumbnail_url'];
+    final url = rawUrl is String && rawUrl.trim().isNotEmpty
+        ? ApiService.resolveUrl(rawUrl)
+        : null;
+    if (url == null) return Center(child: fallback);
+
+    return AvatarAssetImage(
+      url: url,
+      filename: asset['filename']?.toString(),
+      fit: fit,
+      fallback: Center(child: fallback),
     );
   }
 }

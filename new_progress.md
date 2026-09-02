@@ -296,3 +296,191 @@ Build-only configuration was adjusted in `android/gradle.properties`:
   environment cannot execute the clean/build loop or produce APK/AAB artifacts.
 - [B] APK and AAB remain unverified; the supplied build failed before artifact
   creation. The AndroidX/support-library message remains a warning only.
+
+### Codemagic follow-up: Java heap exhaustion during native merge — 2026-09-01
+
+The supplied Codemagic build passed Flutter compilation, including the Camera
+parser repair, and failed later at `:app:mergeReleaseNativeLibs` while
+Jetifying `io.flutter:x86_64_release`. The fatal diagnostic was `Java heap
+space`; the AndroidX/support-library message remained nonfatal.
+
+The configured runner is `mac_mini_m2`, documented by Codemagic as an 8 GB RAM
+machine. The repository previously requested an 8 GB Gradle heap, 4 GB
+metaspace, and parallel execution. That left insufficient memory for the
+runner, Jetifier, and native-library merging together. The build-only repair in
+`android/gradle.properties` now uses:
+
+```text
+org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError
+org.gradle.parallel=false
+org.gradle.workers.max=2
+```
+
+AndroidX and Jetifier remain enabled. No `GRADLE_OPTS` or
+`JAVA_TOOL_OPTIONS` override exists in `codemagic.yaml`, so this is the sole
+Gradle JVM/concurrency configuration. The workflow remains on the configured
+`mac_mini_m2` runner, and x86_64, FFmpeg, dependencies, application ID,
+version, and application features remain unchanged.
+
+- [V] The supplied build proves the previous Dart/parser stage now completes;
+  the new failure is isolated to Gradle memory during native-library merging.
+- [V] The heap, metaspace, parallelism, worker limit, AndroidX, Jetifier,
+  x86_64 preservation, and workflow invariants are verified in the repository.
+- [~] A fresh clean Codemagic APK build is required to verify that the bounded
+  memory configuration completes Jetify and native-library merging.
+- [B] Flutter/Dart/Java/Gradle are unavailable locally, so local clean,
+  dependency, analysis, APK, and AAB commands cannot be run. The supplied APK
+  run failed and produced no verified APK; the AAB step was not reached.
+
+### Runtime profile and AvatarStudio repair — 2026-09-01
+
+The installed-app review identified two runtime contract defects. AvatarStudio
+was sending imported `.svgf` catalog assets through Flutter's raster
+`Image.network` decoder, and profile responses returned `avatar_render_url`
+beside (rather than inside) the nested user object. The shared avatar widget
+now decodes uploaded raster avatars as images and server-rendered/vector
+avatars as SVG; AvatarStudio previews and grid tiles use the same typed asset
+decoder. The mapper folds the profile-level render URL into the shared `User`
+model, so profile, chat, story, search, and friend surfaces use one avatar
+identity.
+
+The legacy friend profile now composes the existing `ProfileHero` and
+`ProfileCard` components used by the owner profile. It retains dynamic
+friend-request, friend-removal, block/report, message, follow/unfollow,
+followers, QR, and share actions. It does not introduce a second profile
+architecture or fake story/reel data.
+
+The relationship contract was also corrected: the Flutter client now calls
+`POST /api/v1/users/{id}/unfollow`, matching the live Laravel route. The live
+profile endpoint now calculates `is_following` and `follower_count` from the
+`followers` table. Follow/unfollow count updates are idempotent, guarded by
+the existing unique follower pair. Avatar saves/resets refresh the provider's
+server-owned current user, and the live `User` serializer now emits a
+versioned `avatar_render_url` using the existing `user_profiles.updated_at`
+column so all consumers naturally refresh after changes.
+The `/me` controller's explicit render URL assignment was updated to use that
+same accessor, so it no longer overwrites the version with a fixed URL.
+
+- [V] `php -l` passes for the live `UserController.php` and `User.php`.
+- [V] Live routes confirm POST follow, POST unfollow, GET followers, and GET
+  following endpoints.
+- [V] Live persistence audit confirms `avatar_assets` has 286 enabled assets;
+  `user_profiles` already contains `avatar_config`, follower counters, and
+  `updated_at`; `followers` has the required columns and the unique composite
+  index. No migration or destructive schema change was required.
+- [V] Live probes confirm both raster and SVG avatar thumbnail responses remain
+  HTTP 200, including `image/png` and `image/svg+xml` assets; no catalog rows
+  or files were removed.
+- [V] Static route/source audit finds one owner `ProfileScreen` route and one
+  shared `/user/:id` `UserProfileScreen` route; all reviewed profile entry
+  points continue to target the shared user route.
+- [~] The new Flutter source changes are not yet verified by `flutter analyze`,
+  `flutter build apk --release`, or `flutter build appbundle --release` in
+  this workspace because Flutter/Dart/Java/Gradle are unavailable locally.
+  A fresh Codemagic build is required before claiming these changes compile.
+- [~] Physical Android/iOS interaction verification of the revised profile
+  layout, AvatarStudio thumbnails, follow state, and avatar refresh remains
+  pending the user's next installed build/test cycle.
+
+### Final profile/social/avatar implementation audit — 2026-09-01
+
+The implementation pass continued before requesting any physical-device test.
+The remaining profile and avatar issues found by the repository-wide audit were
+repaired without removing screens, providers, dependencies, assets, routes, or
+database fields.
+
+#### Dart/UI fixes
+
+- `lib/screens/profile_screen.dart`: repaired the extra `)` in the shared
+  `ProfileHero` widget tree, added versioned profile-header URLs, retained the
+  owner profile hub, and kept Settings as a separate route.
+- `lib/screens/camera_screen.dart`: removed only the extra `);` after the
+  `AnimatedBuilder`'s `Positioned.fill` return. `Positioned.fill` remains a
+  direct child of the camera `Stack`; the camera, preview, controls, Memories
+  panel, loading/retry/empty/error states, vertical drag, pinch/gesture layer,
+  favourites, delete, capture, video, FFmpeg, lifecycle, and API behavior
+  remain present.
+- `lib/screens/user_profile_screen.dart`: completed the shared profile
+  surface for friend, stranger, public, private, blocked, pending-outgoing,
+  and pending-incoming states. It now uses real server capability flags for
+  message/add-friend actions, provides incoming Accept/Decline and outgoing
+  Cancel request actions, keeps friend Message/audio/video calls/remove/block/
+  report actions, supports follow independently, and redirects an accidental
+  self-profile link to the owner hub.
+- `lib/providers/social_provider.dart`: profile refresh now occurs after
+  request cancellation; avatar save/reset refreshes the server-owned user.
+- `lib/models/social.dart` and `lib/core/json_mappers.dart`: added strongly
+  typed content/message/request capability fields and request IDs; no dynamic
+  weakening or duplicate User model was introduced.
+- `lib/widgets/common/snap_avatar.dart`: all shared user-avatar surfaces use
+  SVG decoding for server renders and raster decoding for uploads. Configured
+  SwiftMoji renders take precedence, while legacy uploads remain usable when
+  no SwiftMoji configuration exists.
+- `lib/widgets/common/avatar_asset_image.dart`,
+  `lib/screens/avatar_studio_screen.dart`, and
+  `lib/screens/profile_header_editor_screen.dart`: catalog SVG/SVGF/PNG/JPG
+  assets use a typed decoder, and AvatarStudio's grid adapts across small and
+  large screens. No catalog item or category is filtered out or replaced by a
+  placeholder.
+- Avatar render URLs were propagated through chat, story, story comments,
+  search, map, notifications, friend picker, friends, followers, following,
+  Spotlight, profile, and public-profile navigation surfaces. Story authors,
+  comments, followers, and following entries now open the unified user route.
+- `lib/repositories/social_repository.dart`: unfollow now calls the live
+  `POST /users/{id}/unfollow` contract.
+- `lib/providers/auth_provider.dart`: removed the unconditional rendered-avatar
+  fallback so uploaded avatars are not masked when no SwiftMoji config exists.
+
+#### Backend/API/cache fixes
+
+- Live `UserController`, `FriendController`, and `ConversationController`
+  enforce real profile privacy, friend-request policy, message policy,
+  blocking, pending-request state, and actual friendship/following state.
+- Live follow/unfollow is idempotent and uses the existing unique follower
+  pair; follower counts are queried from real follower rows rather than fixed
+  values.
+- Live `User` now emits a versioned rendered-avatar URL only when a SwiftMoji
+  configuration exists. Legacy uploaded-avatar URLs remain intact.
+- Live `AvatarController` now treats the current profile avatar config as the
+  source of truth when rendering a header, so old embedded header avatar data
+  cannot make a newly selected avatar appear stale. Effective default-plus-
+  override configs are used for old-render cache invalidation.
+- Existing header layout, scene, effects, avatar position, scale, rotation,
+  realtime events, WebRTC signaling, push infrastructure, API integrations,
+  My AI normal conversation graph, and all existing database tables remain.
+
+#### Validation performed
+
+- [V] Local PHP lint: 18 PHP files passed; no project-root `composer.json`
+  exists, so Composer validation is not applicable.
+- [V] Android `AndroidManifest.xml` and iOS `Info.plist` parse as XML.
+- [V] Repository invariants: application ID remains
+  `com.primio.swiftsnap.pkvtsv`; version remains `1.0.0+8`; FFmpeg,
+  `flutter_localizations`, all three global localization delegates, Camera,
+  Memories, Stories, Chats, My AI, AvatarStudio, Profile, Settings, realtime,
+  push, and WebRTC markers remain present.
+- [V] Active-source audit finds no old `LoadState.isError`/`state.error`, no
+  raw user-avatar network decoder outside the shared typed widget, and no
+  retired FFmpeg package/import references.
+- [V] Live PHP lint passed for all changed backend controllers/models.
+- [V] Live route audit confirms avatar catalog/render/header/reset, users,
+  followers/following, friend requests, blocks, reports, conversations, and
+  follow/unfollow routes.
+- [V] Live database audit confirms all relevant migrations are `Ran`, including
+  avatar assets, followers, profile headers, and AI migrations. The migrated
+  live My AI schema has `ai_agents` and no legacy `my_ai_messages` table.
+- [V] Live avatar audit confirms 286 enabled assets and zero missing catalog
+  files; extensions are 10 SVG, 169 PNG, and 107 SVGF. Sample raster/vector
+  thumbnail endpoints return HTTP 200 and preserve their content types.
+
+#### Still unavailable / not falsely claimed
+
+- [B] This workspace has no Flutter, Dart, Java, Gradle, or Flutter wrapper
+  executable. Therefore `flutter clean`, `flutter pub get`, `flutter analyze`,
+  `dart analyze`, `dart format`, `flutter build apk --release`, and
+  `flutter build appbundle --release` could not be run locally.
+- [~] The supplied Codemagic build predates these latest source fixes and
+  failed before they were present. No APK/AAB success is claimed, and no
+  physical-device test is being requested yet. A fresh Codemagic run is the
+  remaining required build verification once the repository changes are
+  committed/uploaded.

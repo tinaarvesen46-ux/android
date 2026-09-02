@@ -77,6 +77,7 @@ class StoryRow extends StatelessWidget {
                 children: [
                   SnapAvatar(
                     imageUrl: story.author.avatarUrl,
+                    renderUrl: story.author.avatarRenderUrl,
                     fallbackText: story.author.displayName,
                     size: AppTheme.storyAvatarSize,
                     showStoryRing: true,

@@ -166,7 +166,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
-                child: _ProfileHero(
+                child: ProfileHero(
                   user: user,
                   unreadNotifications: unread,
                   onBack: () => Navigator.of(context).maybePop(),
@@ -350,7 +350,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-class _ProfileHero extends StatelessWidget {
+class ProfileHero extends StatelessWidget {
   final User user;
   final int unreadNotifications;
   final VoidCallback onBack;
@@ -358,11 +358,13 @@ class _ProfileHero extends StatelessWidget {
   final VoidCallback onShare;
   final VoidCallback onQr;
   final VoidCallback onSettings;
-  final VoidCallback onEditHeader;
-  final VoidCallback onEditProfile;
+  final VoidCallback? onEditHeader;
+  final VoidCallback? onEditProfile;
   final VoidCallback onPublicProfile;
+  final String primaryActionLabel;
+  final String secondaryActionLabel;
 
-  const _ProfileHero({
+  const ProfileHero({
     required this.user,
     required this.unreadNotifications,
     required this.onBack,
@@ -373,12 +375,19 @@ class _ProfileHero extends StatelessWidget {
     required this.onEditHeader,
     required this.onEditProfile,
     required this.onPublicProfile,
+    this.primaryActionLabel = 'My Account',
+    this.secondaryActionLabel = 'Public Profile',
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final top = MediaQuery.paddingOf(context).top;
+    final avatarVersion = user.avatarRenderUrl == null
+        ? null
+        : Uri.tryParse(user.avatarRenderUrl!)?.queryParameters['v'];
+    final headerPath = '/api/v1/avatar/header/${user.id}'
+        '${avatarVersion == null ? '' : '?v=$avatarVersion'}';
 
     return SizedBox(
       height: 420,
@@ -388,7 +397,7 @@ class _ProfileHero extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             SvgPicture.network(
-              ApiService.resolveUrl('/api/v1/avatar/header/${user.id}'),
+              ApiService.resolveUrl(headerPath),
               fit: BoxFit.cover,
               placeholderBuilder: (_) => DecoratedBox(
                 decoration: BoxDecoration(
@@ -455,22 +464,23 @@ class _ProfileHero extends StatelessWidget {
                           size: 128,
                         ),
                       ),
-                      Positioned(
-                        right: -4,
-                        bottom: 0,
-                        child: Material(
-                          color: Colors.white,
-                          shape: const CircleBorder(),
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: onEditHeader,
-                            child: const Padding(
-                              padding: EdgeInsets.all(10),
-                              child: Icon(Icons.edit_rounded, color: Colors.black, size: 20),
+                      if (onEditHeader != null)
+                        Positioned(
+                          right: -4,
+                          bottom: 0,
+                          child: Material(
+                            color: Colors.white,
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: onEditHeader,
+                              child: const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: Icon(Icons.edit_rounded, color: Colors.black, size: 20),
+                              ),
                             ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: AppTheme.spacingMd),
@@ -498,6 +508,19 @@ class _ProfileHero extends StatelessWidget {
                   ),
                   const SizedBox(height: AppTheme.spacingXs),
                   Text('@${user.username}', style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70)),
+                  if (user.bio != null && user.bio!.trim().isNotEmpty) ...[
+                    const SizedBox(height: AppTheme.spacingXs),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMd),
+                      child: Text(
+                        user.bio!,
+                        style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -507,9 +530,9 @@ class _ProfileHero extends StatelessWidget {
               bottom: AppTheme.spacingLg,
               child: Row(
                 children: [
-                  Expanded(child: _HeroPill(label: 'My Account', filled: true, onTap: onEditProfile)),
+                  Expanded(child: _HeroPill(label: primaryActionLabel, filled: true, onTap: onEditProfile)),
                   const SizedBox(width: AppTheme.spacingMd),
-                  Expanded(child: _HeroPill(label: 'Public Profile', onTap: onPublicProfile)),
+                  Expanded(child: _HeroPill(label: secondaryActionLabel, onTap: onPublicProfile)),
                 ],
               ),
             ),
@@ -573,7 +596,7 @@ class _HeaderIconButton extends StatelessWidget {
 class _HeroPill extends StatelessWidget {
   final String label;
   final bool filled;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _HeroPill({required this.label, required this.onTap, this.filled = false});
 
@@ -708,6 +731,19 @@ class _ProfileCard extends StatelessWidget {
             ),
           );
   }
+}
+
+/// Public entry-point for the profile's card treatment. Feature-specific
+/// profile screens can compose the same card without duplicating its theme,
+/// border, radius and interaction behavior.
+class ProfileCard extends StatelessWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+
+  const ProfileCard({super.key, required this.child, this.onTap});
+
+  @override
+  Widget build(BuildContext context) => _ProfileCard(child: child, onTap: onTap);
 }
 
 class _ProfileActionTile extends StatelessWidget {

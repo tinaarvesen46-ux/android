@@ -129,6 +129,7 @@ class _MapScreenState extends State<MapScreen> {
                       onTap: () => context.push('/user/${friend.user.id}'),
                       child: SnapAvatar(
                         imageUrl: friend.user.avatarUrl,
+                        renderUrl: friend.user.avatarRenderUrl,
                         fallbackText: friend.user.displayName,
                         size: AppTheme.mapMarkerSize,
                       ),

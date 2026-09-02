@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/user.dart';
 import '../../providers/social_provider.dart';
-import '../../theme/theme.dart';
+import '../../widgets/common/snap_avatar.dart';
 
 class FollowersScreen extends StatefulWidget {
   final String userId;
@@ -15,7 +17,7 @@ class FollowersScreen extends StatefulWidget {
 
 class _FollowersScreenState extends State<FollowersScreen> {
   bool _loading = true;
-  List<dynamic> _items = [];
+  List<User> _items = [];
   String? _error;
 
   @override
@@ -50,9 +52,15 @@ class _FollowersScreenState extends State<FollowersScreen> {
                       itemBuilder: (context, i) {
                         final u = _items[i];
                         return ListTile(
-                          leading: u.avatarUrl != null ? CircleAvatar(backgroundImage: NetworkImage(u.avatarUrl!)) : null,
+                          leading: SnapAvatar(
+                            imageUrl: u.avatarUrl,
+                            renderUrl: u.avatarRenderUrl,
+                            fallbackText: u.displayName,
+                            size: 42,
+                          ),
                           title: Text(u.displayName),
                           subtitle: Text('@${u.username}'),
+                          onTap: () => context.push('/user/${u.id}'),
                         );
                       },
                     ),

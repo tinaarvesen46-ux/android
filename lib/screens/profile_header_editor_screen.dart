@@ -6,6 +6,7 @@ import '../core/api_failure.dart';
 import '../repositories/social_repository.dart';
 import '../services/api_service.dart';
 import '../widgets/common/snap_avatar.dart';
+import '../widgets/common/avatar_asset_image.dart';
 
 class ProfileHeaderEditorScreen extends StatefulWidget {
   const ProfileHeaderEditorScreen({super.key});
@@ -220,7 +221,11 @@ class _ProfileHeaderEditorScreenState extends State<ProfileHeaderEditorScreen> {
                                             onTap: () { _updateField('background_id', aid); Navigator.pop(context); },
                                             child: Padding(
                                               padding: const EdgeInsets.all(8.0),
-                                              child: Image.network(ApiService.resolveUrl('/api/v1/avatar/asset/background/$aid/thumb'), width: 100, height: 100, fit: BoxFit.cover),
+                                              child: AvatarAssetImage(
+                                                url: ApiService.resolveUrl('/api/v1/avatar/asset/background/$aid/thumb'),
+                                                filename: it['filename']?.toString(),
+                                                fit: BoxFit.cover,
+                                              ),
                                             ),
                                           );
                                         },
@@ -260,7 +265,11 @@ class _ProfileHeaderEditorScreenState extends State<ProfileHeaderEditorScreen> {
                                             onTap: () { _updateField('pose_id', aid); Navigator.pop(context); },
                                             child: Padding(
                                               padding: const EdgeInsets.all(8.0),
-                                              child: Image.network(ApiService.resolveUrl('/api/v1/avatar/asset/pose/$aid/thumb'), width: 100, height: 100, fit: BoxFit.cover),
+                                            child: AvatarAssetImage(
+                                              url: ApiService.resolveUrl('/api/v1/avatar/asset/pose/$aid/thumb'),
+                                              filename: it['filename']?.toString(),
+                                              fit: BoxFit.cover,
+                                            ),
                                             ),
                                           );
                                         },

@@ -82,6 +82,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         return ListTile(
                           leading: SnapAvatar(
                             imageUrl: user.avatarUrl,
+                            renderUrl: user.avatarRenderUrl,
                             fallbackText: user.displayName,
                             size: AppTheme.avatarSm,
                           ),
